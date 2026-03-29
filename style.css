@@ -303,6 +303,8 @@ a:hover { text-decoration: underline; }
 .json-num    { color: #b5cea8; }
 .json-bool   { color: #569cd6; }
 .json-null   { color: #569cd6; }
+.json-never  { color: #9dd4f8; opacity: .4; text-decoration: line-through; text-decoration-color: #e06c75; }
+.json-comment { color: #6a9153; font-style: italic; }
 
 /* ===== HOW-TO SECTION ===== */
 .how-to-grid {
