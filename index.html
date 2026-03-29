@@ -1,1 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ModernVet ETL Sync — Documentation</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
 
+<!-- ===== TOPBAR ===== -->
+<nav class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-logo">ModernVet ETL <span>pet_sync_etl v18.0.4.0.0</span></div>
+    <div class="topbar-nav">
+      <a href="#howto" class="active">How to Use</a>
+      <a href="#schemas">Data Schemas</a>
+      <a href="#api">API Reference</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<header class="hero">
+  <h1>ModernVet ETL Sync API</h1>
+  <p>Push records from AWS S3 (or local files) into Odoo 18. Processing is asynchronous — trigger once, poll for result.</p>
+  <div class="hero-badges">
+    <span class="badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      Odoo 18.0
+    </span>
+    <span class="badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+      Async via Cron
+    </span>
+    <span class="badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      API Key Auth
+    </span>
+    <span class="badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+      AWS S3 + Local
+    </span>
+  </div>
+</header>
+
+<!-- ===== HOW TO USE ===== -->
+<section class="section" id="howto" style="background: var(--surface);">
+  <div class="container">
+    <div class="section-title">How to Use</div>
+    <div class="section-subtitle">Everything you need to get started with the ETL sync module</div>
+
+    <!-- Flow -->
+    <div class="flow">
+      <div class="flow-step"><span class="step-icon">📤</span> AWS Glue / S3 outputs JSONL</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span class="step-icon">📡</span> POST /api/v1/etl/notifications</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span class="step-icon">📋</span> Log created (queued)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span class="step-icon">⚙️</span> Odoo Cron processes</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><span class="step-icon">✅</span> Records upserted in Odoo</div>
+    </div>
+
+    <div class="how-to-grid">
+
+      <!-- Auth -->
+      <div class="how-to-card">
+        <h4><span class="step-num">1</span> Authentication</h4>
+        <p>Pass your API key in either header:</p>
+        <ul>
+          <li><code>X-API-Key: &lt;key&gt;</code></li>
+          <li><code>Authorization: Bearer &lt;key&gt;</code></li>
+        </ul>
+        <p style="margin-top:10px;">Keys are managed in Odoo under <strong>Settings → ETL API Keys</strong> (model: <code>etl.api.key</code>).</p>
+      </div>
+
+      <!-- Trigger -->
+      <div class="how-to-card">
+        <h4><span class="step-num">2</span> Trigger a Sync</h4>
+        <p>POST a JSON body to <code>/api/v1/etl/notifications</code>:</p>
+        <ul>
+          <li><code>data_type</code> — what to sync</li>
+          <li><code>s3_location</code> — S3 bucket/prefix or local path</li>
+          <li><code>local: true</code> — read from filesystem</li>
+        </ul>
+        <p style="margin-top:10px;">Returns <code>{"status":"queued","log_id":42}</code> immediately.</p>
+      </div>
+
+      <!-- Poll -->
+      <div class="how-to-card">
+        <h4><span class="step-num">3</span> Poll for Status</h4>
+        <p>GET <code>/api/v1/etl/logs/{log_id}</code> to check progress. States: <code>queued → running → done / failed</code>.</p>
+        <ul>
+          <li><strong>done</strong> — check created / updated / skipped / errors counters</li>
+          <li><strong>failed</strong> — read <code>error</code> field for exception details</li>
+        </ul>
+      </div>
+
+      <!-- S3 Resolution -->
+      <div class="how-to-card">
+        <h4><span class="step-num">4</span> S3 Location Resolution</h4>
+        <ol style="padding-left:18px;">
+          <li>Try <code>s3_location</code> as a direct object key</li>
+          <li>If not found, list all objects under that prefix</li>
+          <li>Download and process all matching files together</li>
+        </ol>
+        <p style="margin-top:8px;">Multiple files are concatenated before parsing.</p>
+      </div>
+
+      <!-- File Format -->
+      <div class="how-to-card">
+        <h4><span class="step-num">5</span> File Format</h4>
+        <p>Files must be <strong>JSON array</strong> or <strong>JSONL</strong> (one object per line). Every record must have <code>id_from_ext</code> as the upsert key.</p>
+        <ul>
+          <li>Encoding: UTF-8</li>
+          <li>Extension: <code>.json</code> or <code>.jsonl</code></li>
+          <li>Max size: limited by available memory</li>
+        </ul>
+      </div>
+
+      <!-- Idempotency -->
+      <div class="how-to-card">
+        <h4><span class="step-num">6</span> Idempotency</h4>
+        <p>All syncs are safe to re-run. Records are matched by <code>id_from_ext</code>:</p>
+        <ul>
+          <li><strong>Product / Sales / Invoice</strong> — upsert (create or update)</li>
+          <li><strong>Loyalty History</strong> — create-only; existing <code>id_from_ext</code> is skipped</li>
+          <li>Posted/cancelled invoices — skipped on update attempt</li>
+        </ul>
+      </div>
+
+      <!-- AWS Config -->
+      <div class="how-to-card">
+        <h4><span class="step-num">7</span> AWS S3 Credentials</h4>
+        <p>Configure in Odoo <strong>Settings → Technical → System Parameters</strong>:</p>
+        <ul>
+          <li><code>pet_sync_etl.aws_region</code> — default: <code>ap-southeast-3</code></li>
+          <li><code>pet_sync_etl.aws_access_key_id</code></li>
+          <li><code>pet_sync_etl.aws_secret_access_key</code></li>
+        </ul>
+        <p style="margin-top:8px;">Leave key/secret empty to use IAM role credentials.</p>
+      </div>
+
+      <!-- Loyalty Config -->
+      <div class="how-to-card">
+        <h4><span class="step-num">8</span> Loyalty Journal Config</h4>
+        <p>Required for loyalty journal entries. Configure per company in <strong>Settings → Accounting → Loyalty Configuration</strong>:</p>
+        <ul>
+          <li>Invoice journal, payable account, revenue deduction account</li>
+          <li>Non-invoice journal, payable account, revenue deduction account</li>
+        </ul>
+      </div>
+
+      <!-- Stuck Jobs -->
+      <div class="how-to-card">
+        <h4><span class="step-num">9</span> Stuck Jobs &amp; Auto-Reset</h4>
+        <p>If a job stays in <code>running</code> state for more than <strong>2 hours</strong>, the next cron run auto-resets it to <code>failed</code>.</p>
+        <p style="margin-top:8px;">Cron runs every ~1 minute and processes <strong>one queued log at a time</strong> to prevent race conditions.</p>
+      </div>
+
+    </div>
+
+    <!-- curl examples -->
+    <div style="margin-top:32px;">
+      <div class="section-title" style="font-size:17px; margin-bottom:16px;">Quick Start — cURL Examples</div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+          <span style="font-size:14px;">🔁</span>
+          <h3>Sync invoices from S3</h3>
+        </div>
+        <div class="card-body">
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre id="curl1">curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "invoice",
+    "s3_location": "my-bucket/glue-output/invoices/2026-03-25"
+  }'</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+          <span style="font-size:14px;">🗂️</span>
+          <h3>Test with local file</h3>
+        </div>
+        <div class="card-body">
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "invoice",
+    "s3_location": "/home/user/data/invoices.jsonl",
+    "local": true
+  }'</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span style="font-size:14px;">📊</span>
+          <h3>Poll sync status</h3>
+        </div>
+        <div class="card-body">
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>curl -s http://localhost:8069/api/v1/etl/logs/42 \
+  -H "X-API-Key: YOUR_KEY_HERE"</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== DATA SCHEMAS ===== -->
+<a name="schemas"></a>
+
+<!-- Main tabs -->
+<div class="tabs-wrapper">
+  <div class="tabs-inner">
+    <button class="tab-btn active" onclick="switchTab('master')" id="tab-master">
+      <span class="tab-icon">📦</span> Master Data
+    </button>
+    <button class="tab-btn" onclick="switchTab('sales')" id="tab-sales">
+      <span class="tab-icon">🛒</span> Sales
+    </button>
+    <button class="tab-btn" onclick="switchTab('invoice')" id="tab-invoice">
+      <span class="tab-icon">🧾</span> Invoice
+    </button>
+    <button class="tab-btn" onclick="switchTab('loyalty')" id="tab-loyalty">
+      <span class="tab-icon">🎁</span> Loyalty History
+    </button>
+  </div>
+</div>
+
+<!-- ===== MASTER DATA TAB ===== -->
+<div class="tab-pane active" id="pane-master">
+  <!-- Sub-tabs -->
+  <div class="subtabs-wrapper">
+    <div class="subtabs-inner">
+      <button class="subtab-btn active" onclick="switchSubtab('consu')" id="stab-consu">📦 Product (Consumable)</button>
+      <button class="subtab-btn" onclick="switchSubtab('service')" id="stab-service">🔧 Product (Service)</button>
+    </div>
+  </div>
+
+  <!-- Sub: Product Consu -->
+  <div class="subtab-pane active" id="spane-consu">
+    <section class="section">
+      <div class="container">
+        <div class="section-title">Product — Consumable / Storable</div>
+        <div class="section-subtitle">
+          <code>data_type: "product"</code> &nbsp;·&nbsp; Target model: <code>product.template</code> &nbsp;·&nbsp; Upsert by <code>id_from_ext</code>
+        </div>
+
+        <div class="alert alert-info">
+          <span class="alert-icon">ℹ️</span>
+          <div><strong>Upsert behaviour:</strong> Records are matched by <code>id_from_ext</code>. On create, <code>name</code> is required. On update, only supplied fields are written. Set <code>deleted_at</code> to any non-empty value to archive the product.</div>
+        </div>
+
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header"><h3>Parameters</h3></div>
+          <div class="params-table-wrap">
+            <table class="params-table">
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
+                <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-create">On Create</span></td><td class="field-desc">Product name</td></tr>
+                <tr><td class="field-name">product_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Maps to Odoo <code>type</code>. Values: <code>"consu"</code>. Default: <code>"consu"</code></td></tr>
+                <tr><td class="field-name">is_storable</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Set <code>true</code> to enable inventory tracking</td></tr>
+                <tr><td class="field-name">list_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Sales price</td></tr>
+                <tr><td class="field-name">standard_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Cost price</td></tr>
+                <tr><td class="field-name">default_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal reference</td></tr>
+                <tr><td class="field-name">barcode</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>barcode_from_ext</code> on the product template</td></tr>
+                <tr><td class="field-name">product_size</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Size/weight label (custom field from <code>pet_stock</code>)</td></tr>
+                <tr><td class="field-name">brand_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Brand name — searched or created in <code>product.brand</code></td></tr>
+                <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal notes</td></tr>
+                <tr><td class="field-name">description_sale</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer-facing description</td></tr>
+                <tr><td class="field-name">description_purchase</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Vendor-facing description</td></tr>
+                <tr><td class="field-name">active</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>true</code>. Set <code>false</code> to archive.</td></tr>
+                <tr><td class="field-name">deleted_at</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Any non-empty value archives the product (<code>active=false</code>)</td></tr>
+                <tr><td class="field-name">disabled_at</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Any non-empty value sets <code>sale_ok=false</code></td></tr>
+                <tr><td class="field-name">weight</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product weight (kg)</td></tr>
+                <tr><td class="field-name">volume</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product volume (m³)</td></tr>
+                <tr><td class="field-name">invoice_policy</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"order"</code> (invoice immediately) or <code>"delivery"</code> (after delivery). Default: <code>"delivery"</code></td></tr>
+                <tr><td class="field-name">purchase_method</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"purchase"</code> or <code>"receive"</code></td></tr>
+                <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code></td></tr>
+                <tr><td class="field-name">categ_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product category — see <a href="#category-schema">Category Schema</a> below</td></tr>
+                <tr><td class="field-name">x_uom_category_id</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">UOM units list. Replaces all existing units in the product's private UOM category — see <a href="#uom-schema">UOM Schema</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Category schema -->
+        <a name="category-schema"></a>
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header"><h3>categ_id — Product Category</h3></div>
+          <div class="params-table-wrap">
+            <table class="params-table">
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key</td></tr>
+                <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Category name</td></tr>
+                <tr><td class="field-name">parent_id</td><td class="field-type">string | object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">String = <code>id_from_ext</code> of parent, or nested Category object (recursive)</td></tr>
+                <tr><td class="field-name">property_cost_method</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"standard"</code>, <code>"average"</code>, <code>"fifo"</code>. Default: <code>"standard"</code></td></tr>
+                <tr><td class="field-name">property_valuation</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"manual_periodic"</code> or <code>"real_time"</code>. Default: <code>"manual_periodic"</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- UOM schema -->
+        <a name="uom-schema"></a>
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header"><h3>x_uom_category_id — UOM Units</h3></div>
+          <div class="params-table-wrap">
+            <table class="params-table">
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Unit name e.g. <code>"Unit"</code>, <code>"Box(12)"</code></td></tr>
+                <tr><td class="field-name">uom_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"sub"</code> = reference unit (1:1 ratio), <code>"main"</code> = larger packaging unit. Only one <code>"sub"</code> per category.</td></tr>
+                <tr><td class="field-name">ratio</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Conversion factor relative to the reference unit</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Example -->
+        <div class="card">
+          <div class="card-header"><h3>Example JSONL Record</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CONSU-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
+  <span class="json-key">"product_type"</span>: <span class="json-str">"consu"</span>,
+  <span class="json-key">"list_price"</span>: <span class="json-num">450000.0</span>,
+  <span class="json-key">"standard_price"</span>: <span class="json-num">320000.0</span>,
+  <span class="json-key">"default_code"</span>: <span class="json-str">"RC-MAXI-10K"</span>,
+  <span class="json-key">"barcode"</span>: <span class="json-str">"7612938888001"</span>,
+  <span class="json-key">"product_size"</span>: <span class="json-str">"10kg"</span>,
+  <span class="json-key">"brand_id"</span>: <span class="json-str">"Royal Canin"</span>,
+  <span class="json-key">"weight"</span>: <span class="json-num">10.0</span>,
+  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"delivery"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
+  <span class="json-key">"categ_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-DOG-FOOD"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Dog Food"</span>,
+    <span class="json-key">"parent_id"</span>: {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-PET-FOOD"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Pet Food"</span>,
+      <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
+      <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
+    },
+    <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
+    <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
+  },
+  <span class="json-key">"x_uom_category_id"</span>: [
+    {<span class="json-key">"name"</span>: <span class="json-str">"Unit"</span>, <span class="json-key">"uom_type"</span>: <span class="json-str">"sub"</span>, <span class="json-key">"ratio"</span>: <span class="json-num">1.0</span>},
+    {<span class="json-key">"name"</span>: <span class="json-str">"Box(4)"</span>, <span class="json-key">"uom_type"</span>: <span class="json-str">"main"</span>, <span class="json-key">"ratio"</span>: <span class="json-num">4.0</span>}
+  ]
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Sub: Product Service -->
+  <div class="subtab-pane" id="spane-service">
+    <section class="section">
+      <div class="container">
+        <div class="section-title">Product — Service</div>
+        <div class="section-subtitle">
+          <code>data_type: "product"</code> &nbsp;·&nbsp; Target model: <code>product.template</code> &nbsp;·&nbsp; Upsert by <code>id_from_ext</code>
+        </div>
+
+        <div class="alert alert-success">
+          <span class="alert-icon">💡</span>
+          <div>Service products are not tracked in inventory. <code>invoice_policy</code> defaults to <code>"order"</code> (invoiceable immediately after sale confirmation).</div>
+        </div>
+
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header"><h3>Parameters</h3></div>
+          <div class="params-table-wrap">
+            <table class="params-table">
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
+                <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-create">On Create</span></td><td class="field-desc">Product name</td></tr>
+                <tr><td class="field-name">product_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Must be <code>"service"</code></td></tr>
+                <tr><td class="field-name">list_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Sales price</td></tr>
+                <tr><td class="field-name">standard_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Cost price</td></tr>
+                <tr><td class="field-name">default_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal reference</td></tr>
+                <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal notes</td></tr>
+                <tr><td class="field-name">description_sale</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer-facing description</td></tr>
+                <tr><td class="field-name">active</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>true</code></td></tr>
+                <tr><td class="field-name">deleted_at</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Any non-empty value archives the product</td></tr>
+                <tr><td class="field-name">status</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"enabled"</code> → <code>sale_ok=true</code>; <code>"disabled"</code> → <code>sale_ok=false</code></td></tr>
+                <tr><td class="field-name">invoice_policy</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"order"</code> (default) or <code>"delivery"</code></td></tr>
+                <tr><td class="field-name">categ_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Same structure as Consumable category</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Example JSONL Record</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SVC-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+  <span class="json-key">"product_type"</span>: <span class="json-str">"service"</span>,
+  <span class="json-key">"list_price"</span>: <span class="json-num">150000.0</span>,
+  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"order"</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"enabled"</span>,
+  <span class="json-key">"categ_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-VET-EXAM"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Veterinary Examination"</span>,
+    <span class="json-key">"parent_id"</span>: {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-VET-SVC"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Veterinary Services"</span>
+    }
+  }
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ===== SALES TAB ===== -->
+<div class="tab-pane" id="pane-sales">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Sales Order</div>
+      <div class="section-subtitle">
+        <code>data_type: "sales"</code> or <code>"sale"</code> &nbsp;·&nbsp; Target model: <code>sale.order</code> &nbsp;·&nbsp; Upsert by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>Update restriction:</strong> Only <code>draft</code> orders can be updated. Confirmed (<code>sale</code>) or cancelled orders are skipped on re-sync. Pass <code>"state": "sale"</code> to auto-confirm after upsert.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Object with <code>id_from_ext</code> of <code>res.partner</code></td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External ID of the customer partner</td></tr>
+              <tr><td class="field-name">date_order</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Format: <code>YYYY-MM-DD HH:MM:SS</code></td></tr>
+              <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code>, <code>"sale"</code>, or <code>"done"</code>. Values <code>"sale"</code>/<code>"done"</code> trigger auto-confirm.</td></tr>
+              <tr><td class="field-name">client_order_ref</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer reference number</td></tr>
+              <tr><td class="field-name">ref</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored as <code>client_order_ref</code></td></tr>
+              <tr><td class="field-name">note</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal note / terms</td></tr>
+              <tr><td class="field-name">pet_name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Patient/pet name (custom field)</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code></td></tr>
+              <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Adds a negative-price Global Discount line to the order</td></tr>
+              <tr><td class="field-name">loyalty_redemption_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Adds a negative-price Loyalty Redemption line to the order</td></tr>
+              <tr><td class="field-name">order_line</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Lines are fully replaced when present. See <strong>Order Line</strong> below.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>order_line — Sale Order Line</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used to link invoice lines to SO lines</td></tr>
+              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>product.template</code></td></tr>
+              <tr><td class="field-name">product_uom_qty</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
+              <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
+              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100)</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line description</td></tr>
+              <tr><td class="field-name">product_uom</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">UOM name within the product's private UOM category</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Example JSONL Record</h3></div>
+        <div class="card-body">
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SO-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {<span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>},
+  <span class="json-key">"date_order"</span>: <span class="json-str">"2026-03-25 09:00:00"</span>,
+  <span class="json-key">"state"</span>: <span class="json-str">"sale"</span>,
+  <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
+  <span class="json-key">"order_line"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-01"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"product_uom_qty"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>
+    },
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-02"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"product_uom_qty"</span>: <span class="json-num">1.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>
+    }
+  ]
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== INVOICE TAB ===== -->
+<div class="tab-pane" id="pane-invoice">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Invoice</div>
+      <div class="section-subtitle">
+        <code>data_type: "invoice"</code> or <code>"invoices"</code> &nbsp;·&nbsp; Target model: <code>account.move</code> &nbsp;·&nbsp; Upsert by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <div>
+          <strong>Auto-post flow:</strong> When <code>state=posted</code>, the ETL will:
+          <ol style="margin-top:6px; padding-left:18px;">
+            <li>Add loyalty redemption line if <code>point_redeem_idr &gt; 0</code></li>
+            <li>Add global discount line if <code>global_discount &lt; 0</code></li>
+            <li>Post the invoice</li>
+            <li>Create loyalty card history + journal entries</li>
+            <li>Register payments from <code>payment_list</code> (actual amount = <code>paid_amount − deduction lines</code>)</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Invoice Header Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer — matched by <code>id_from_ext</code>; auto-created if not found (requires <code>name</code>)</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External ID of customer</td></tr>
+              <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used to auto-create partner if not found</td></tr>
+              <tr><td class="field-name">partner_id.email</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Partner email (on auto-create)</td></tr>
+              <tr><td class="field-name">partner_id.phone</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Partner phone (on auto-create)</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Invoice number e.g. <code>TRX-2026-00001</code>. Set on create only.</td></tr>
+              <tr><td class="field-name">move_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"out_invoice"</code> (default), <code>"in_invoice"</code>, <code>"out_refund"</code>, <code>"in_refund"</code></td></tr>
+              <tr><td class="field-name">invoice_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">invoice_date_due</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Due date. Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">ref</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Source document reference</td></tr>
+              <tr><td class="field-name">narration</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal notes / terms</td></tr>
+              <tr><td class="field-name">pet_name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Patient/pet name (custom field)</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Also sets analytic distribution on lines.</td></tr>
+              <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code> or <code>"posted"</code> (default). <code>"posted"</code> triggers full auto-post flow.</td></tr>
+              <tr><td class="field-name">global_discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Negative value e.g. <code>-50000</code>. Adds a Global Discount line. Amount deducted from payment.</td></tr>
+              <tr><td class="field-name">point_earning</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored on invoice; creates loyalty earn history + misc journal entry.</td></tr>
+              <tr><td class="field-name">point_earning_idr</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR monetary value of earned points. Used as misc JE amount; stored in <code>issued_idr_ext</code> on loyalty history.</td></tr>
+              <tr><td class="field-name">point_redeem</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points redeemed. Creates loyalty redeem history. Adds Loyalty Redemption line to invoice.</td></tr>
+              <tr><td class="field-name">point_redeem_idr</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of redeemed points. Used as redemption line amount (<code>price_unit = −point_redeem_idr</code>). Stored in <code>used_idr_ext</code>.</td></tr>
+              <tr><td class="field-name">invoice_line_ids</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Invoice lines — upserted by <code>id_from_ext</code>. Lines absent from incoming data are deleted.</td></tr>
+              <tr><td class="field-name">payment_list</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payments to register. Only applied when <code>state=posted</code> and invoice has no existing payments.</td></tr>
+              <tr><td class="field-name">amount_untaxed_in_currency_signed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only — mismatch logged in <code>manual_check_missmatch</code></td></tr>
+              <tr><td class="field-name">amount_total</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>invoice_line_ids — Invoice Line</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Match key for upsert; also used to link to <code>sale.order.line</code></td></tr>
+              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>product.template</code></td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line description</td></tr>
+              <tr><td class="field-name">quantity</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
+              <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
+              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100)</td></tr>
+              <tr><td class="field-name">price_subtotal</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only — mismatch logged</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>payment_list — Payment Entry</h3></div>
+        <div class="alert alert-info" style="margin:16px 20px 0;">
+          <span class="alert-icon">💳</span>
+          <div>Actual registered amount = <code>paid_amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The original <code>paid_amount</code> is always stored in <code>account.payment.paid_amount_ext</code>. <code>payment_journal_code</code> must match <code>id_from_ext</code> on <code>account.payment.method.line</code>.</div>
+        </div>
+        <div class="params-table-wrap" style="margin-top:1px;">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of <code>account.payment.method.line</code>. Determines both the journal and payment method.</td></tr>
+              <tr><td class="field-name">paid_amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Full amount from external system. Stored as-is in <code>paid_amount_ext</code>. Actual payment is reduced by deductions.</td></tr>
+              <tr><td class="field-name">payment_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment note / communication</td></tr>
+              <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code> for external tracking</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Example JSONL Record — Full Invoice with Loyalty &amp; Payment</h3></div>
+        <div class="card-body">
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"TRX-2026-001"</span>,
+  <span class="json-key">"move_type"</span>: <span class="json-str">"out_invoice"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+  },
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"state"</span>: <span class="json-str">"posted"</span>,
+  <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
+  <span class="json-key">"point_earning"</span>: <span class="json-num">850</span>,
+  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">85000</span>,
+  <span class="json-key">"point_redeem"</span>: <span class="json-num">100</span>,
+  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">50000</span>,
+  <span class="json-key">"global_discount"</span>: <span class="json-num">-25000</span>,
+  <span class="json-key">"invoice_line_ids"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-001-L01"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">1.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">500000.0</span>
+    }
+  ],
+  <span class="json-key">"payment_list"</span>: [
+    {
+      <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>,
+      <span class="json-key">"paid_amount"</span>: <span class="json-num">500000.0</span>,
+      <span class="json-key">"payment_date"</span>: <span class="json-str">"2026-03-25"</span>,
+      <span class="json-key">"memo"</span>: <span class="json-str">"Bank Transfer"</span>,
+      <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"Bank Transfer"</span>
+    }
+  ]
+}</pre>
+          </div>
+          <div class="alert alert-success" style="margin-top:16px;">
+            <span class="alert-icon">🧮</span>
+            <div>In this example: <code>actual payment = 500000 − 50000 (redeem) − 25000 (discount) = 425000</code>. The value <code>500000</code> is saved in <code>paid_amount_ext</code>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== LOYALTY HISTORY TAB ===== -->
+<div class="tab-pane" id="pane-loyalty">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Loyalty History</div>
+      <div class="section-subtitle">
+        <code>data_type: "loyalty_history"</code> &nbsp;·&nbsp; Target models: <code>loyalty.card</code> + <code>loyalty.history</code> &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists are silently skipped — no update is performed. This prevents duplicate journal entries on re-sync.</div>
+      </div>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">⚙️</span>
+        <div>
+          <strong>Journal entry logic:</strong> Requires company's non-invoice loyalty journal to be configured in <em>Settings → Accounting → Loyalty Configuration</em>.
+          <ul style="margin-top:6px; padding-left:18px;">
+            <li><code>issued &gt; 0</code> → Earn JE: <strong>Debit</strong> Revenue Deduction account, <strong>Credit</strong> Payable account</li>
+            <li><code>used &gt; 0</code> → Redeem JE: <strong>Debit</strong> Payable account, <strong>Credit</strong> Revenue Deduction account</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key. Already-existing records are skipped.</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of <code>res.partner</code>. Auto-creates partner using <code>user_name_ext</code> if not found.</td></tr>
+              <tr><td class="field-name">create_date</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Date for the journal entry and history record. Formats: <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Text description stored on the history record and used as journal entry narration</td></tr>
+              <tr><td class="field-name">issued</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored in <code>loyalty.history.issued</code>; added to <code>loyalty.card.points</code></td></tr>
+              <tr><td class="field-name">issued_idr_ext</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of earned points. Stored in <code>loyalty.history.issued_idr_ext</code>; used as earn journal entry amount</td></tr>
+              <tr><td class="field-name">used</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points redeemed. Stored in <code>loyalty.history.used</code>; subtracted from <code>loyalty.card.points</code></td></tr>
+              <tr><td class="field-name">used_idr_ext</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of redeemed points. Stored in <code>loyalty.history.used_idr_ext</code>; used as redeem journal entry amount</td></tr>
+              <tr><td class="field-name">referral_id_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Referral ID. Also accepted as <code>referal_id_ext</code> (without double-l).</td></tr>
+              <tr><td class="field-name">user_id_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External user / member ID</td></tr>
+              <tr><td class="field-name">user_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External user name. Used to auto-create partner when <code>partner_id</code> is not found.</td></tr>
+              <tr><td class="field-name">xendit_id_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Xendit transaction ID for cross-referencing payment records</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Idempotency Key Rules</h3></div>
+        <div class="card-body">
+          <table class="params-table" style="border:none;">
+            <thead><tr><th>Record has</th><th>Earn history <code>id_from_ext</code></th><th>Redeem history <code>id_from_ext</code></th></tr></thead>
+            <tbody>
+              <tr><td>Earn only (<code>issued &gt; 0</code>)</td><td class="field-name">{id_from_ext}</td><td>—</td></tr>
+              <tr><td>Redeem only (<code>used &gt; 0</code>)</td><td>—</td><td class="field-name">{id_from_ext}</td></tr>
+              <tr><td>Both earn and redeem</td><td class="field-name">{id_from_ext}</td><td class="field-name">{id_from_ext}_redeem</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Example JSONL Records</h3></div>
+        <div class="card-body">
+          <div class="code-block" style="margin-bottom:16px;">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre><span style="color:#6a9153;">// Earn only</span>
+{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>,
+  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>,
+  <span class="json-key">"description"</span>: <span class="json-str">"Top-up bonus"</span>,
+  <span class="json-key">"issued"</span>: <span class="json-num">5000</span>,
+  <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">50000</span>,
+  <span class="json-key">"used"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"used_idr_ext"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"user_name_ext"</span>: <span class="json-str">"Budi Santoso"</span>,
+  <span class="json-key">"xendit_id_ext"</span>: <span class="json-str">"xendit-abc123"</span>
+}
+<span style="color:#6a9153;">// Earn + Redeem (creates two history records)</span>
+{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-002"</span>,
+  <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>,
+  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>,
+  <span class="json-key">"description"</span>: <span class="json-str">"Purchase + redemption"</span>,
+  <span class="json-key">"issued"</span>: <span class="json-num">3000</span>,
+  <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">30000</span>,
+  <span class="json-key">"used"</span>: <span class="json-num">1000</span>,
+  <span class="json-key">"used_idr_ext"</span>: <span class="json-num">10000</span>,
+  <span class="json-key">"user_id_ext"</span>: <span class="json-str">"USR-001"</span>,
+  <span class="json-key">"user_name_ext"</span>: <span class="json-str">"Budi Santoso"</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== API REFERENCE ===== -->
+<section class="section" id="api" style="background: var(--surface);">
+  <div class="container">
+    <div class="section-title">API Reference</div>
+    <div class="section-subtitle">All endpoints require authentication via <code>X-API-Key</code> or <code>Authorization: Bearer</code> header</div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <span style="background:#1a6b3c;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;">POST</span>
+        <h3 style="font-family:var(--font-mono); font-size:14px;">/api/v1/etl/notifications</h3>
+      </div>
+      <div class="card-body">
+        <p style="margin-bottom:12px;">Enqueue a sync job. Returns immediately with a <code>log_id</code>.</p>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Body Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"loyalty_history"</code></td></tr>
+              <tr><td class="field-name">s3_location</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">S3 path (<code>bucket/prefix</code> or <code>bucket/path/to/file.json</code>) or local path when <code>local=true</code></td></tr>
+              <tr><td class="field-name">local</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>false</code>. When <code>true</code>: reads from local filesystem, writes result CSV next to input file.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;"><strong>Response 200:</strong></div>
+        <div class="code-block" style="margin-top:8px;">
+          <pre>{<span class="json-key">"status"</span>: <span class="json-str">"queued"</span>, <span class="json-key">"log_id"</span>: <span class="json-num">42</span>}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <span style="background:#2471a3;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;">GET</span>
+        <h3 style="font-family:var(--font-mono); font-size:14px;">/api/v1/etl/logs/{log_id}</h3>
+      </div>
+      <div class="card-body">
+        <p style="margin-bottom:12px;">Poll sync job status. Returns counters and state.</p>
+        <div class="code-block">
+          <pre>{
+  <span class="json-key">"log_id"</span>: <span class="json-num">42</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"done"</span>,
+  <span class="json-key">"data_type"</span>: <span class="json-str">"invoice"</span>,
+  <span class="json-key">"created"</span>: <span class="json-num">12</span>,
+  <span class="json-key">"updated"</span>: <span class="json-num">3</span>,
+  <span class="json-key">"skipped"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"errors"</span>: <span class="json-num">1</span>,
+  <span class="json-key">"duration"</span>: <span class="json-num">4.23</span>,
+  <span class="json-key">"started_at"</span>: <span class="json-str">"2026-03-25T09:01:00"</span>,
+  <span class="json-key">"finished_at"</span>: <span class="json-str">"2026-03-25T09:01:04"</span>,
+  <span class="json-key">"error"</span>: <span class="json-str">"[{\"id_from_ext\":\"INV-X\",\"error\":\"partner not found\"}]"</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span style="background:#2471a3;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;">GET</span>
+        <h3 style="font-family:var(--font-mono); font-size:14px;">/api/v1/etl/s3/list?s3_location={bucket/prefix}</h3>
+      </div>
+      <div class="card-body">
+        <p>List objects at an S3 prefix. Useful for debugging S3 path resolution before triggering a sync.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div>ModernVet ETL Sync API — <code>pet_sync_etl</code> v18.0.4.0.0 &nbsp;·&nbsp; Odoo 18.0 &nbsp;·&nbsp; LGPL-3</div>
+  <div style="margin-top:6px;">Contact: SANDI GAUTAMA</div>
+</footer>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function switchSubtab(name) {
+  document.querySelectorAll('.subtab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('spane-' + name).classList.add('active');
+  document.getElementById('stab-' + name).classList.add('active');
+}
+
+function copyCode(btn) {
+  const pre = btn.parentElement.querySelector('pre');
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const el = document.querySelector(a.getAttribute('href'));
+    if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+});
+</script>
+</body>
+</html>
