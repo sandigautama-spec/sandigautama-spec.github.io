@@ -348,14 +348,10 @@
   <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
   <span class="json-key">"type"</span>: <span class="json-str">"consu"</span>,
   <span class="json-key">"list_price"</span>: <span class="json-num">450000.0</span>,
-  <span class="json-key">"standard_price"</span>: <span class="json-num">320000.0</span>,
-  <span class="json-key">"default_code"</span>: <span class="json-str">"RC-MAXI-10K"</span>,
-  <span class="json-key">"barcode"</span>: <span class="json-str">"7612938888001"</span>,
-  <span class="json-key">"product_size"</span>: <span class="json-str">"10kg"</span>,
-  <span class="json-key">"brand_id"</span>: <span class="json-str">"Royal Canin"</span>,
-  <span class="json-key">"weight"</span>: <span class="json-num">10.0</span>,
-  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"delivery"</span>,
-  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
+  <span class="json-never">"default_code"</span>: <span class="json-str">"RC-MAXI-10K"</span>, <span class="json-comment">// ETL never send</span>
+  <span class="json-key">"barcode"</span>: <span class="json-str">"7612938888001"</span>, <span class="json-comment">// stored in barcode_from_ext field</span>
+  <span class="json-never">"product_size"</span>: <span class="json-str">"10kg"</span>, <span class="json-comment">// ETL never send</span>
+  <span class="json-never">"brand_id"</span>: <span class="json-str">"Royal Canin"</span>, <span class="json-comment">// ETL never send</span>
   <span class="json-key">"categ_id"</span>: {
     <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-DOG-FOOD"</span>,
     <span class="json-key">"name"</span>: <span class="json-str">"Dog Food"</span>,
@@ -368,10 +364,14 @@
     <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
     <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
   },
+  <span class="json-key">"is_storable"</span>: <span class="json-bool">false</span>, <span class="json-comment">// if true → tracking = 'serial' (inventory tracked by serial number)</span>
+  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"delivery"</span>,
+  <span class="json-key">"purchase_method"</span>: <span class="json-str">"receive"</span>,
   <span class="json-key">"x_uom_category_id"</span>: [
     {<span class="json-key">"name"</span>: <span class="json-str">"Unit"</span>, <span class="json-key">"uom_type"</span>: <span class="json-str">"sub"</span>, <span class="json-key">"ratio"</span>: <span class="json-num">1.0</span>},
     {<span class="json-key">"name"</span>: <span class="json-str">"Box(4)"</span>, <span class="json-key">"uom_type"</span>: <span class="json-str">"main"</span>, <span class="json-key">"ratio"</span>: <span class="json-num">4.0</span>}
-  ]
+  ], <span class="json-comment">// uom matched by name within product's private UOM category</span>
+  <span class="json-key">"description"</span>: <span class="json-str">"Internal notes text"</span>
 }</pre>
             </div>
           </div>
@@ -428,16 +428,33 @@
   <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
   <span class="json-key">"type"</span>: <span class="json-str">"service"</span>,
   <span class="json-key">"list_price"</span>: <span class="json-num">150000.0</span>,
-  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"order"</span>,
-  <span class="json-key">"status"</span>: <span class="json-str">"enabled"</span>,
+  <span class="json-never">"default_code"</span>: <span class="json-str">"SVC-REF"</span>, <span class="json-comment">// ETL never send</span>
+  <span class="json-key">"additional_products"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">1.0</span>,
+      <span class="json-key">"uom_ext_id"</span>: <span class="json-str">"Unit"</span>
+    }
+  ],
   <span class="json-key">"categ_id"</span>: {
     <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-VET-EXAM"</span>,
     <span class="json-key">"name"</span>: <span class="json-str">"Veterinary Examination"</span>,
     <span class="json-key">"parent_id"</span>: {
       <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-VET-SVC"</span>,
       <span class="json-key">"name"</span>: <span class="json-str">"Veterinary Services"</span>
-    }
-  }
+      <span class="json-never">"property_cost_method"</span>: <span class="json-str">"average"</span>, <span class="json-comment">// ETL never send</span>
+      <span class="json-never">"property_valuation"</span>: <span class="json-str">"real_time"</span>  <span class="json-comment">// ETL never send</span>
+    },
+    <span class="json-never">"property_cost_method"</span>: <span class="json-str">"average"</span>, <span class="json-comment">// ETL never send</span>
+    <span class="json-never">"property_valuation"</span>: <span class="json-str">"real_time"</span>  <span class="json-comment">// ETL never send</span>
+  },
+  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"order"</span>,
+  <span class="json-key">"description"</span>: <span class="json-str">"Internal notes text"</span>,
+  <span class="json-key">"deleted_at"</span>: <span class="json-str">"2026-01-02 12:03:11.000000"</span>, <span class="json-comment">// non-empty → archives product (active=false)</span>
+  <span class="json-never">"disabled_at"</span>: <span class="json-str">"..."</span>, <span class="json-comment">// ETL never send</span>
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3332"</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"enabled"</span>, <span class="json-comment">// "enabled" → sale_ok=true; "disabled" → sale_ok=false</span>
+  <span class="json-key">"barcode"</span>: <span class="json-str">""</span> <span class="json-comment">// stored in barcode_from_ext field</span>
 }</pre>
             </div>
           </div>
@@ -510,25 +527,52 @@
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SO-2026-001"</span>,
-  <span class="json-key">"partner_id"</span>: {<span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>},
-  <span class="json-key">"date_order"</span>: <span class="json-str">"2026-03-25 09:00:00"</span>,
-  <span class="json-key">"state"</span>: <span class="json-str">"sale"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"SO-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>,
+    <span class="json-key">"street"</span>: <span class="json-str">"Jl. Sudirman 1"</span>,
+    <span class="json-key">"street2"</span>: <span class="json-str">"Lt. 5"</span>,
+    <span class="json-key">"city"</span>: <span class="json-str">"Jakarta"</span>,
+    <span class="json-key">"zip"</span>: <span class="json-str">"12190"</span>,
+    <span class="json-key">"phone"</span>: <span class="json-str">"021-5551234"</span>,
+    <span class="json-key">"mobile"</span>: <span class="json-str">"081234567890"</span>,
+    <span class="json-key">"email"</span>: <span class="json-str">"budi@example.com"</span>,
+    <span class="json-key">"ref"</span>: <span class="json-str">"MBR-001"</span>,
+    <span class="json-key">"comment"</span>: <span class="json-str">"VIP customer"</span>
+  },
   <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"date_order"</span>: <span class="json-str">"2026-03-25 09:00:00"</span>,
   <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
   <span class="json-key">"order_line"</span>: [
     {
       <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-01"</span>,
       <span class="json-key">"product_id"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
       <span class="json-key">"product_uom_qty"</span>: <span class="json-num">2.0</span>,
-      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>
+      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>, <span class="json-comment">// fixed price discount</span>
+      <span class="json-key">"discount"</span>: <span class="json-num">10</span>, <span class="json-comment">// percentage discount</span>
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">805000.0</span> <span class="json-comment">// Verification only — Odoo recomputes this value</span>
     },
     {
       <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-02"</span>,
       <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Box(4)"</span>,
       <span class="json-key">"product_uom_qty"</span>: <span class="json-num">1.0</span>,
-      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>
+      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
+      <span class="json-key">"discount"</span>: <span class="json-num">10</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">130000.0</span> <span class="json-comment">// Verification only — Odoo recomputes this value</span>
     }
-  ]
+  ],
+  <span class="json-key">"note"</span>: <span class="json-str">"Sales from WH-00001"</span>,
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">1000000</span>, <span class="json-comment">// adds Global Discount line with this amount as negative price</span>
+  <span class="json-key">"amount_untaxed"</span>: <span class="json-num">1000000</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
+  <span class="json-key">"amount_tax"</span>: <span class="json-num">0</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
+  <span class="json-key">"amount_total"</span>: <span class="json-num">1000000</span> <span class="json-comment">// Verification only — Odoo recomputes this value</span>
 }</pre>
           </div>
         </div>
@@ -581,7 +625,7 @@
               <tr><td class="field-name">pet_name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Patient/pet name (custom field)</td></tr>
               <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Also sets analytic distribution on lines.</td></tr>
               <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code> or <code>"posted"</code> (default). <code>"posted"</code> triggers full auto-post flow.</td></tr>
-              <tr><td class="field-name">global_discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Negative value e.g. <code>-50000</code>. Adds a Global Discount line. Amount deducted from payment.</td></tr>
+              <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Positive value e.g. <code>25000</code>. Adds a Global Discount line (stored as negative price). Also accepted as <code>global_discount</code> (negative). Amount deducted from payment.</td></tr>
               <tr><td class="field-name">point_earning</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored on invoice; creates loyalty earn history + misc journal entry.</td></tr>
               <tr><td class="field-name">point_earning_idr</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR monetary value of earned points. Used as misc JE amount; stored in <code>issued_idr_ext</code> on loyalty history.</td></tr>
               <tr><td class="field-name">point_redeem</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points redeemed. Creates loyalty redeem history. Adds Loyalty Redemption line to invoice.</td></tr>
@@ -624,10 +668,11 @@
             <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of <code>account.payment.method.line</code>. Determines both the journal and payment method.</td></tr>
-              <tr><td class="field-name">paid_amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Full amount from external system. Stored as-is in <code>paid_amount_ext</code>. Actual payment is reduced by deductions.</td></tr>
-              <tr><td class="field-name">payment_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Full amount from external system. Also accepted as <code>paid_amount</code>. Stored as-is in <code>paid_amount_ext</code>. Actual registered amount is reduced by deductions.</td></tr>
+              <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Also accepted as <code>payment_date</code>. Format: <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment note / communication</td></tr>
               <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code> for external tracking</td></tr>
+              <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
             </tbody>
           </table>
         </div>
@@ -641,43 +686,62 @@
             <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-2026-001"</span>,
   <span class="json-key">"name"</span>: <span class="json-str">"TRX-2026-001"</span>,
-  <span class="json-key">"move_type"</span>: <span class="json-str">"out_invoice"</span>,
   <span class="json-key">"partner_id"</span>: {
     <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
-    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>,
+    <span class="json-key">"street"</span>: <span class="json-str">"Jl. Sudirman 1"</span>,
+    <span class="json-key">"street2"</span>: <span class="json-str">"Lt. 5"</span>,
+    <span class="json-key">"city"</span>: <span class="json-str">"Jakarta"</span>,
+    <span class="json-key">"zip"</span>: <span class="json-str">"12190"</span>,
+    <span class="json-key">"phone"</span>: <span class="json-str">"021-5551234"</span>,
+    <span class="json-key">"mobile"</span>: <span class="json-str">"081234567890"</span>,
+    <span class="json-key">"email"</span>: <span class="json-str">"budi@example.com"</span>,
+    <span class="json-key">"ref"</span>: <span class="json-str">"MBR-001"</span>,
+    <span class="json-key">"comment"</span>: <span class="json-str">"VIP customer"</span>
   },
-  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-03-25"</span>,
-  <span class="json-key">"state"</span>: <span class="json-str">"posted"</span>,
   <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"invoice_date_due"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"ref"</span>: <span class="json-str">"FROM SALES OF SO-2026-001"</span>,
   <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
-  <span class="json-key">"point_earning"</span>: <span class="json-num">850</span>,
-  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">85000</span>,
-  <span class="json-key">"point_redeem"</span>: <span class="json-num">100</span>,
-  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">50000</span>,
-  <span class="json-key">"global_discount"</span>: <span class="json-num">-25000</span>,
   <span class="json-key">"invoice_line_ids"</span>: [
     {
       <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-001-L01"</span>,
       <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
       <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
       <span class="json-key">"quantity"</span>: <span class="json-num">1.0</span>,
-      <span class="json-key">"price_unit"</span>: <span class="json-num">500000.0</span>
+      <span class="json-key">"price_unit"</span>: <span class="json-num">500000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>, <span class="json-comment">// fixed price discount</span>
+      <span class="json-key">"discount"</span>: <span class="json-num">10</span>, <span class="json-comment">// percentage discount</span>
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">445000.0</span> <span class="json-comment">// Verification only — Odoo recomputes this value</span>
     }
   ],
+  <span class="json-key">"narration"</span>: <span class="json-str">"Invoice from WH-00001"</span>,
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">25000</span>, <span class="json-comment">// adds Global Discount line with negative price</span>
+  <span class="json-key">"amount_untaxed_in_currency_signed"</span>: <span class="json-num">500000</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
+  <span class="json-key">"amount_tax_in_currency_signed"</span>: <span class="json-num">0</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
+  <span class="json-key">"amount_total"</span>: <span class="json-num">425000</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
   <span class="json-key">"payment_list"</span>: [
     {
-      <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>,
-      <span class="json-key">"paid_amount"</span>: <span class="json-num">500000.0</span>,
-      <span class="json-key">"payment_date"</span>: <span class="json-str">"2026-03-25"</span>,
+      <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>, <span class="json-comment">// id_from_ext of account.payment.method.line</span>
+      <span class="json-key">"amount"</span>: <span class="json-num">500000.0</span>, <span class="json-comment">// stored in paid_amount_ext; actual payment deducts loyalty + discount</span>
+      <span class="json-key">"date"</span>: <span class="json-str">"2026-03-25"</span>,
       <span class="json-key">"memo"</span>: <span class="json-str">"Bank Transfer"</span>,
-      <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"Bank Transfer"</span>
+      <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"Bank Transfer"</span>,
+      <span class="json-key">"payment_type_card_brand_ext"</span>: <span class="json-str">"Visa"</span>
     }
-  ]
+  ],
+  <span class="json-key">"amount_due_in_currency_signed"</span>: <span class="json-num">425000</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
+  <span class="json-key">"point_earning"</span>: <span class="json-num">850</span>,
+  <span class="json-key">"point_redeem"</span>: <span class="json-num">100</span>,
+  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">85000</span>,
+  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">50000</span>
 }</pre>
           </div>
           <div class="alert alert-success" style="margin-top:16px;">
             <span class="alert-icon">🧮</span>
-            <div>In this example: <code>actual payment = 500000 − 50000 (redeem) − 25000 (discount) = 425000</code>. The value <code>500000</code> is saved in <code>paid_amount_ext</code>.</div>
+            <div>In this example: <code>actual payment = 500000 − 50000 (redeem) − 25000 (discount) = 425000</code>. The original <code>500000</code> is saved in <code>paid_amount_ext</code>.</div>
           </div>
         </div>
       </div>
@@ -727,6 +791,7 @@
               <tr><td class="field-name">referral_id_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Referral ID. Also accepted as <code>referal_id_ext</code> (without double-l).</td></tr>
               <tr><td class="field-name">user_id_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External user / member ID</td></tr>
               <tr><td class="field-name">user_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External user name. Used to auto-create partner when <code>partner_id</code> is not found.</td></tr>
+              <tr><td class="field-name">email_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Email address from external system</td></tr>
               <tr><td class="field-name">xendit_id_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Xendit transaction ID for cross-referencing payment records</td></tr>
             </tbody>
           </table>
@@ -752,31 +817,20 @@
         <div class="card-body">
           <div class="code-block" style="margin-bottom:16px;">
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre><span style="color:#6a9153;">// Earn only</span>
-{
+            <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-001"</span>,
   <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>,
-  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>,
+  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>, <span class="json-comment">// also accepts YYYY-MM-DD</span>
   <span class="json-key">"description"</span>: <span class="json-str">"Top-up bonus"</span>,
   <span class="json-key">"issued"</span>: <span class="json-num">5000</span>,
   <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">50000</span>,
   <span class="json-key">"used"</span>: <span class="json-num">0</span>,
   <span class="json-key">"used_idr_ext"</span>: <span class="json-num">0</span>,
-  <span class="json-key">"user_name_ext"</span>: <span class="json-str">"Budi Santoso"</span>,
-  <span class="json-key">"xendit_id_ext"</span>: <span class="json-str">"xendit-abc123"</span>
-}
-<span style="color:#6a9153;">// Earn + Redeem (creates two history records)</span>
-{
-  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-002"</span>,
-  <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>,
-  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>,
-  <span class="json-key">"description"</span>: <span class="json-str">"Purchase + redemption"</span>,
-  <span class="json-key">"issued"</span>: <span class="json-num">3000</span>,
-  <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">30000</span>,
-  <span class="json-key">"used"</span>: <span class="json-num">1000</span>,
-  <span class="json-key">"used_idr_ext"</span>: <span class="json-num">10000</span>,
+  <span class="json-key">"referral_id_ext"</span>: <span class="json-str">"REF-001"</span>,
   <span class="json-key">"user_id_ext"</span>: <span class="json-str">"USR-001"</span>,
-  <span class="json-key">"user_name_ext"</span>: <span class="json-str">"Budi Santoso"</span>
+  <span class="json-key">"user_name_ext"</span>: <span class="json-str">"Budi Santoso"</span>, <span class="json-comment">// used to auto-create partner if not found</span>
+  <span class="json-key">"email_ext"</span>: <span class="json-str">"budi@example.com"</span>,
+  <span class="json-key">"xendit_id_ext"</span>: <span class="json-str">"xendit-abc123"</span>
 }</pre>
           </div>
         </div>
