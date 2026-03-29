@@ -242,6 +242,9 @@
     <button class="tab-btn" onclick="switchTab('loyalty')" id="tab-loyalty">
       <span class="tab-icon">🎁</span> Loyalty History
     </button>
+    <button class="tab-btn" onclick="switchTab('fullflow')" id="tab-fullflow">
+      <span class="tab-icon">🧪</span> Full Flow Example
+    </button>
   </div>
 </div>
 
@@ -835,6 +838,430 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== FULL FLOW EXAMPLE TAB ===== -->
+<div class="tab-pane" id="pane-fullflow">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Full Flow Example</div>
+      <div class="section-subtitle">
+        End-to-end test using <code>examples/claude_should_not_touch_this/</code> — run steps in order.
+        Each step uses <code>local: true</code> so no S3 required.
+      </div>
+
+      <!-- Flow diagram -->
+      <div class="flow" style="margin-bottom:36px; flex-wrap:wrap; gap:8px;">
+        <div class="flow-step"><span class="step-icon">📦</span> 1. Product (consu)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="step-icon">🔧</span> 2. Product (service)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="step-icon">🛒</span> 3. Sales</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="step-icon">🧾</span> 4. Invoice + Payment</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="step-icon">🎁</span> 5. Loyalty History</div>
+      </div>
+
+      <div class="alert alert-info" style="margin-bottom:32px;">
+        <span class="alert-icon">ℹ️</span>
+        <div>
+          <strong>How invoice links to sales:</strong> Invoice lines use the <em>same</em> <code>id_from_ext</code> as the sale order lines (<code>SOL-001-01</code>, <code>SOL-001-02</code>). The ETL matches them and sets <code>sale_line_ids</code> automatically.<br>
+          <strong>Payment deduction:</strong> <code>payment.amount</code> is the pre-deduction total. The ETL subtracts the global discount line value internally before registering the payment.
+        </div>
+      </div>
+
+      <!-- STEP 1: Product (consu) -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 1</span>
+          <span style="font-size:17px;font-weight:600;">Product — Consumable (<code>CONSU-001</code>)</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">📋</span>
+          <div>Creates <strong>Royal Canin Maxi Adult 10kg</strong> as <code>type=consu</code> with a private UOM category (Unit / Box(4)). Category <em>Dog Food → Pet Food</em> is created if missing.</div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "product",
+    "s3_location": "C:\\Users\\AXIOO\\Desktop\\workspace\\modernvet\\custom\\modernvet-odoo\\pet_sync_etl\\examples\\claude_should_not_touch_this\\product",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CONSU-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
+  <span class="json-key">"type"</span>: <span class="json-str">"consu"</span>,
+  <span class="json-key">"list_price"</span>: <span class="json-num">450000.0</span>,
+  <span class="json-key">"default_code"</span>: <span class="json-str">"RC-MAXI-10K"</span>,
+  <span class="json-key">"barcode"</span>: <span class="json-str">"7612938888001"</span>,
+  <span class="json-key">"product_size"</span>: <span class="json-str">"10kg"</span>,
+  <span class="json-key">"brand_id"</span>: <span class="json-str">"Royal Canin"</span>,
+  <span class="json-key">"categ_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-DOG-FOOD"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Dog Food"</span>,
+    <span class="json-key">"parent_id"</span>: {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-PET-FOOD"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Pet Food"</span>,
+      <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
+      <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
+    },
+    <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
+    <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
+  },
+  <span class="json-key">"is_storable"</span>: <span class="json-bool">false</span>,
+  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"delivery"</span>,
+  <span class="json-key">"purchase_method"</span>: <span class="json-str">"receive"</span>,
+  <span class="json-key">"x_uom_category_id"</span>: [
+    {<span class="json-key">"name"</span>: <span class="json-str">"Unit"</span>, <span class="json-key">"uom_type"</span>: <span class="json-str">"sub"</span>, <span class="json-key">"ratio"</span>: <span class="json-num">1.0</span>},
+    {<span class="json-key">"name"</span>: <span class="json-str">"Box(4)"</span>, <span class="json-key">"uom_type"</span>: <span class="json-str">"main"</span>, <span class="json-key">"ratio"</span>: <span class="json-num">4.0</span>}
+  ],
+  <span class="json-key">"description"</span>: <span class="json-str">"Internal notes text"</span>,
+  <span class="json-key">"deleted_at"</span>: <span class="json-str">""</span>, <span class="json-comment">// empty = product stays active</span>
+  <span class="json-key">"disabled_at"</span>: <span class="json-str">""</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Product (service) -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 2</span>
+          <span style="font-size:17px;font-weight:600;">Product — Service (<code>SVC-001</code>)</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">📋</span>
+          <div>Creates <strong>Basic Health Checkup</strong> as <code>type=service</code>. Has <code>additional_products</code> referencing <code>CONSU-001</code> — Step 1 must run first. <code>deleted_at</code> is empty so the product stays active.</div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "product",
+    "s3_location": "C:\\Users\\AXIOO\\Desktop\\workspace\\modernvet\\custom\\modernvet-odoo\\pet_sync_etl\\examples\\claude_should_not_touch_this\\service",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SVC-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+  <span class="json-key">"type"</span>: <span class="json-str">"service"</span>,
+  <span class="json-key">"list_price"</span>: <span class="json-num">150000.0</span>,
+  <span class="json-key">"default_code"</span>: <span class="json-str">"SVC-REF"</span>,
+  <span class="json-key">"additional_products"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CONSU-001"</span>, <span class="json-comment">// must exist — run Step 1 first</span>
+      <span class="json-key">"quantity"</span>: <span class="json-num">1.0</span>,
+      <span class="json-key">"uom_ext_id"</span>: <span class="json-str">"Unit"</span>
+    }
+  ],
+  <span class="json-key">"categ_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-VET-EXAM"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Veterinary Examination"</span>,
+    <span class="json-key">"parent_id"</span>: {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CAT-VET-SVC"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Veterinary Services"</span>,
+      <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
+      <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
+    },
+    <span class="json-key">"property_cost_method"</span>: <span class="json-str">"average"</span>,
+    <span class="json-key">"property_valuation"</span>: <span class="json-str">"real_time"</span>
+  },
+  <span class="json-key">"invoice_policy"</span>: <span class="json-str">"order"</span>,
+  <span class="json-key">"description"</span>: <span class="json-str">"Internal notes text"</span>,
+  <span class="json-key">"deleted_at"</span>: <span class="json-str">""</span>, <span class="json-comment">// empty = product stays active</span>
+  <span class="json-key">"disabled_at"</span>: <span class="json-str">""</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3332"</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"enabled"</span>,
+  <span class="json-key">"barcode"</span>: <span class="json-str">""</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: Sales -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 3</span>
+          <span style="font-size:17px;font-weight:600;">Sales Order (<code>SO-2026-001</code>)</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">📋</span>
+          <div>
+            Creates customer <strong>Budi Santoso</strong> (<code>CUST-001</code>) inline if not found, then creates the sale order with 2 lines.<br>
+            <code>discount_fixed</code> only — do <strong>not</strong> set both <code>discount_fixed</code> and <code>discount</code> to non-zero values at the same time (constraint error).<br>
+            <strong>Amounts:</strong> 890,000 + 145,000 − 35,000 (global discount) = <strong>1,000,000</strong>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "sales",
+    "s3_location": "C:\\Users\\AXIOO\\Desktop\\workspace\\modernvet\\custom\\modernvet-odoo\\pet_sync_etl\\examples\\claude_should_not_touch_this\\sales",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SO-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"SO-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>,
+    <span class="json-key">"street"</span>: <span class="json-str">"Jl. Sudirman 1"</span>,
+    <span class="json-key">"street2"</span>: <span class="json-str">"Lt. 5"</span>,
+    <span class="json-key">"city"</span>: <span class="json-str">"Jakarta"</span>,
+    <span class="json-key">"zip"</span>: <span class="json-str">"12190"</span>,
+    <span class="json-key">"phone"</span>: <span class="json-str">"021-5551234"</span>,
+    <span class="json-key">"mobile"</span>: <span class="json-str">"081234567890"</span>,
+    <span class="json-key">"email"</span>: <span class="json-str">"budi@example.com"</span>,
+    <span class="json-key">"ref"</span>: <span class="json-str">"MBR-001"</span>,
+    <span class="json-key">"comment"</span>: <span class="json-str">"VIP customer"</span>
+  },
+  <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"date_order"</span>: <span class="json-str">"2026-03-25 09:00:00"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"order_line"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-01"</span>, <span class="json-comment">// invoice step uses this same id_from_ext to link</span>
+      <span class="json-key">"product_id"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
+      <span class="json-key">"product_uom_qty"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>, <span class="json-comment">// fixed discount — discount must be 0 when this is set</span>
+      <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// verification only — 2 × (450000 − 5000)</span>
+    },
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-02"</span>, <span class="json-comment">// invoice step uses this same id_from_ext to link</span>
+      <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
+      <span class="json-key">"product_uom_qty"</span>: <span class="json-num">1.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
+      <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">145000.0</span> <span class="json-comment">// verification only — 1 × (150000 − 5000)</span>
+    }
+  ],
+  <span class="json-key">"note"</span>: <span class="json-str">"Sales from WH-00001"</span>,
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">35000</span>, <span class="json-comment">// adds Global Discount line: −35,000</span>
+  <span class="json-key">"amount_untaxed"</span>: <span class="json-num">1000000</span>, <span class="json-comment">// verification only</span>
+  <span class="json-key">"amount_tax"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"amount_total"</span>: <span class="json-num">1000000</span> <span class="json-comment">// 890000 + 145000 − 35000</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4: Invoice -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 4</span>
+          <span style="font-size:17px;font-weight:600;">Invoice + Payment (<code>INV-2026-001</code>)</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">📋</span>
+          <div>
+            Creates invoice linked to <code>SO-2026-001</code> via matching <code>id_from_ext</code> on each line (<code>SOL-001-01</code>, <code>SOL-001-02</code>).<br>
+            Posts the invoice, then registers payment. <strong>Payment deduction:</strong> global discount (−35,000) <em>and</em> loyalty redemption (−50,000) lines are both subtracted from <code>payment.amount</code> before the wizard runs:<br>
+            <code>actual_payment = 1,035,000 − 85,000 (35,000 + 50,000) = 950,000</code><br>
+            <strong>Amounts:</strong> 890,000 + 145,000 − 35,000 (global discount) − 50,000 (point redeem) = <strong>950,000</strong>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "invoice",
+    "s3_location": "C:\\Users\\AXIOO\\Desktop\\workspace\\modernvet\\custom\\modernvet-odoo\\pet_sync_etl\\examples\\claude_should_not_touch_this\\invoice",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"TRX-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>, <span class="json-comment">// looked up first; sub-fields used only if not found</span>
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>,
+    <span class="json-key">"street"</span>: <span class="json-str">"Jl. Sudirman 1"</span>,
+    <span class="json-key">"street2"</span>: <span class="json-str">"Lt. 5"</span>,
+    <span class="json-key">"city"</span>: <span class="json-str">"Jakarta"</span>,
+    <span class="json-key">"zip"</span>: <span class="json-str">"12190"</span>,
+    <span class="json-key">"phone"</span>: <span class="json-str">"021-5551234"</span>,
+    <span class="json-key">"mobile"</span>: <span class="json-str">"081234567890"</span>,
+    <span class="json-key">"email"</span>: <span class="json-str">"budi@example.com"</span>,
+    <span class="json-key">"ref"</span>: <span class="json-str">"MBR-001"</span>,
+    <span class="json-key">"comment"</span>: <span class="json-str">"VIP customer"</span>
+  },
+  <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"invoice_date_due"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"ref"</span>: <span class="json-str">"SO-2026-001"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"invoice_line_ids"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-01"</span>, <span class="json-comment">// matches sale.order.line → sets sale_line_ids</span>
+      <span class="json-key">"product_id"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
+      <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// verification only</span>
+    },
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-02"</span>, <span class="json-comment">// matches sale.order.line → sets sale_line_ids</span>
+      <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">1.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
+      <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">145000.0</span> <span class="json-comment">// verification only</span>
+    }
+  ],
+  <span class="json-key">"narration"</span>: <span class="json-str">"Invoice of SO-2026-001 from WH-00001"</span>,
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">35000</span>, <span class="json-comment">// adds Global Discount line: −35,000</span>
+  <span class="json-key">"amount_untaxed_in_currency_signed"</span>: <span class="json-num">985000</span>, <span class="json-comment">// verification only</span>
+  <span class="json-key">"amount_tax_in_currency_signed"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"amount_total"</span>: <span class="json-num">985000</span>, <span class="json-comment">// verification only</span>
+  <span class="json-key">"payment_list"</span>: [
+    {
+      <span class="json-key">"date"</span>: <span class="json-str">"2026-03-25"</span>,
+      <span class="json-key">"amount"</span>: <span class="json-num">1035000.0</span>, <span class="json-comment">// pre-deduction: ETL subtracts 85000 (35000+50000) → actual 950000</span>
+      <span class="json-key">"memo"</span>: <span class="json-str">"Bank Transfer SO-2026-001"</span>,
+      <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>, <span class="json-comment">// id_from_ext on account.payment.method.line</span>
+      <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"Bank Transfer"</span>,
+      <span class="json-key">"payment_type_card_brand_ext"</span>: <span class="json-str">""</span>
+    }
+  ],
+  <span class="json-key">"amount_due_in_currency_signed"</span>: <span class="json-num">985000</span>, <span class="json-comment">// verification only</span>
+  <span class="json-key">"point_earning"</span>: <span class="json-num">2000</span>,
+  <span class="json-key">"point_redeem"</span>: <span class="json-num">5000</span>,
+  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">20000</span>,
+  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">50000</span> <span class="json-comment">// adds Loyalty Redemption line: −50,000 (also counted as deduction)</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 5: Loyalty History -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 5</span>
+          <span style="font-size:17px;font-weight:600;">Loyalty History — Non-Invoice (<code>LH-2026-001</code>)</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">📋</span>
+          <div>
+            Creates a loyalty history entry <em>not linked to any invoice</em> — a manual top-up bonus for <code>CUST-001</code>. Creates the loyalty card if it doesn't exist yet.<br>
+            <code>issued: 5000</code> → card balance +5000 pts. <code>used: 0</code> → no redemption entry.<br>
+            <strong>Note:</strong> loyalty history is create-only — re-running with the same <code>id_from_ext</code> will skip.
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "loyalty_history",
+    "s3_location": "C:\\Users\\AXIOO\\Desktop\\workspace\\modernvet\\custom\\modernvet-odoo\\pet_sync_etl\\examples\\claude_should_not_touch_this\\history_loyalty",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>, <span class="json-comment">// plain string = id_from_ext of res.partner</span>
+  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>, <span class="json-comment">// DD/MM/YYYY or YYYY-MM-DD</span>
+  <span class="json-key">"description"</span>: <span class="json-str">"Top-up bonus"</span>,
+  <span class="json-key">"issued"</span>: <span class="json-num">5000</span>,
+  <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">50000</span>,
+  <span class="json-key">"used"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"used_idr_ext"</span>: <span class="json-num">0</span>,
+  <span class="json-key">"referral_id_ext"</span>: <span class="json-str">"Budi Santoso"</span>,
+  <span class="json-key">"user_id_ext"</span>: <span class="json-str">"Budi Santoso"</span>,
+  <span class="json-key">"user_name_ext"</span>: <span class="json-str">"Budi Santoso"</span>, <span class="json-comment">// fallback name if partner not found by id_from_ext</span>
+  <span class="json-key">"email_ext"</span>: <span class="json-str">"budi@example.com"</span>,
+  <span class="json-key">"xendit_id_ext"</span>: <span class="json-str">"xendit-abc123"</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 </div>
