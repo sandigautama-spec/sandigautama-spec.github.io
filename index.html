@@ -277,7 +277,7 @@
               <tbody>
                 <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
                 <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-create">On Create</span></td><td class="field-desc">Product name</td></tr>
-                <tr><td class="field-name">product_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Maps to Odoo <code>type</code>. Values: <code>"consu"</code>. Default: <code>"consu"</code></td></tr>
+                <tr><td class="field-name">type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Maps to Odoo <code>type</code>. Values: <code>"consu"</code>. Default: <code>"consu"</code></td></tr>
                 <tr><td class="field-name">is_storable</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Set <code>true</code> to enable inventory tracking</td></tr>
                 <tr><td class="field-name">list_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Sales price</td></tr>
                 <tr><td class="field-name">standard_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Cost price</td></tr>
@@ -346,7 +346,7 @@
               <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CONSU-001"</span>,
   <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
-  <span class="json-key">"product_type"</span>: <span class="json-str">"consu"</span>,
+  <span class="json-key">"type"</span>: <span class="json-str">"consu"</span>,
   <span class="json-key">"list_price"</span>: <span class="json-num">450000.0</span>,
   <span class="json-key">"standard_price"</span>: <span class="json-num">320000.0</span>,
   <span class="json-key">"default_code"</span>: <span class="json-str">"RC-MAXI-10K"</span>,
@@ -402,7 +402,7 @@
               <tbody>
                 <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
                 <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-create">On Create</span></td><td class="field-desc">Product name</td></tr>
-                <tr><td class="field-name">product_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Must be <code>"service"</code></td></tr>
+                <tr><td class="field-name">type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Must be <code>"service"</code></td></tr>
                 <tr><td class="field-name">list_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Sales price</td></tr>
                 <tr><td class="field-name">standard_price</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Cost price</td></tr>
                 <tr><td class="field-name">default_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal reference</td></tr>
@@ -426,7 +426,7 @@
               <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SVC-001"</span>,
   <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
-  <span class="json-key">"product_type"</span>: <span class="json-str">"service"</span>,
+  <span class="json-key">"type"</span>: <span class="json-str">"service"</span>,
   <span class="json-key">"list_price"</span>: <span class="json-num">150000.0</span>,
   <span class="json-key">"invoice_policy"</span>: <span class="json-str">"order"</span>,
   <span class="json-key">"status"</span>: <span class="json-str">"enabled"</span>,
