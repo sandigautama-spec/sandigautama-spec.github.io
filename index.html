@@ -162,6 +162,40 @@
         <p style="margin-top:8px;">Cron runs every ~1 minute and processes <strong>one queued log at a time</strong> to prevent race conditions.</p>
       </div>
 
+      <!-- Warehouse id_from_ext -->
+      <div class="how-to-card">
+        <h4><span class="step-num">10</span> Warehouse <code>id_from_ext</code></h4>
+        <p>Sales, invoices, and products reference warehouses via <code>warehouse_id</code> (a string). The ETL looks up <code>stock.warehouse</code> by <code>id_from_ext</code>.</p>
+        <p style="margin-top:8px;">Set in Odoo: <strong>Inventory → Configuration → Warehouses</strong> — edit a warehouse and fill in the <strong>External ID</strong> field.</p>
+        <ul style="margin-top:8px;">
+          <li>If not found: warehouse field is silently skipped (no error)</li>
+          <li>Analytic account is also resolved from the warehouse and applied to all lines</li>
+        </ul>
+      </div>
+
+      <!-- Payment Method Line id_from_ext -->
+      <div class="how-to-card">
+        <h4><span class="step-num">11</span> Payment Method Line <code>id_from_ext</code></h4>
+        <p>Invoice <code>payment_list[].payment_journal_code</code> looks up <code>account.payment.method.line</code> by <code>id_from_ext</code>.</p>
+        <p style="margin-top:8px;">Set in Odoo: <strong>Accounting → Configuration → Journals</strong> — open a journal, go to <strong>Incoming Payments</strong> tab, and fill in the <strong>External ID</strong> column for the relevant payment method line.</p>
+        <ul style="margin-top:8px;">
+          <li>If not found: that payment entry is skipped with a warning in the log — invoice is posted but unpaid</li>
+          <li>The lookup is also scoped to the invoice's company</li>
+        </ul>
+      </div>
+
+      <!-- Special Products & Loyalty Program -->
+      <div class="how-to-card">
+        <h4><span class="step-num">12</span> Special Products &amp; Loyalty Program</h4>
+        <p>These Odoo records must exist (created by the module's data files on install):</p>
+        <ul>
+          <li><code>pet_sync_etl.product_global_discount</code> — product used for the global discount line on sales/invoices</li>
+          <li><code>pet_sync_etl.product_loyalty_redemption</code> — product used for the loyalty redemption line on invoices</li>
+          <li><code>pet_sync_etl.loyalty_program_modernvet</code> — loyalty program used for card &amp; history sync</li>
+        </ul>
+        <p style="margin-top:8px;">If any of these are missing, the related feature is <strong>silently skipped</strong> (no error, just a warning in the server log).</p>
+      </div>
+
     </div>
 
     <!-- curl examples -->
@@ -850,6 +884,53 @@
       <div class="section-subtitle">
         End-to-end test using <code>examples/claude_should_not_touch_this/</code> — run steps in order.
         Each step uses <code>local: true</code> so no S3 required.
+      </div>
+
+      <!-- Prerequisites -->
+      <div class="card" style="margin-bottom:32px;">
+        <div class="card-header"><h3>⚙️ Prerequisites — Configure Before Running</h3></div>
+        <div class="card-body">
+          <table class="params-table">
+            <thead><tr><th>What</th><th>Where in Odoo</th><th>Value used in examples</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="field-name">ETL API Key</td>
+                <td class="field-desc">Settings → ETL API Keys (<code>etl.api.key</code>)</td>
+                <td class="field-desc">Any active key — replace <code>YOUR_KEY_HERE</code> in curl commands</td>
+              </tr>
+              <tr>
+                <td class="field-name">Warehouse <code>id_from_ext</code></td>
+                <td class="field-desc">Inventory → Configuration → Warehouses → External ID field</td>
+                <td class="field-desc"><code>"3296"</code> (set this on the target warehouse)</td>
+              </tr>
+              <tr>
+                <td class="field-name">Payment Method Line <code>id_from_ext</code></td>
+                <td class="field-desc">Accounting → Configuration → Journals → Incoming Payments tab → External ID column</td>
+                <td class="field-desc"><code>"PMETHOD-EXT-0001"</code> (set this on the payment method line that should receive the payment)</td>
+              </tr>
+              <tr>
+                <td class="field-name">Loyalty Journal Config</td>
+                <td class="field-desc">Settings → Accounting → Loyalty Configuration (per company)</td>
+                <td class="field-desc">Invoice journal + payable account + revenue deduction account — required for point earn JE on invoice</td>
+              </tr>
+              <tr>
+                <td class="field-name"><code>product_global_discount</code></td>
+                <td class="field-desc">Auto-created on module install (<code>pet_sync_etl.product_global_discount</code>)</td>
+                <td class="field-desc">Used for <code>global_discount_amount</code> lines on sales &amp; invoices</td>
+              </tr>
+              <tr>
+                <td class="field-name"><code>product_loyalty_redemption</code></td>
+                <td class="field-desc">Auto-created on module install (<code>pet_sync_etl.product_loyalty_redemption</code>)</td>
+                <td class="field-desc">Used for <code>point_redeem_idr</code> lines on invoices</td>
+              </tr>
+              <tr>
+                <td class="field-name"><code>loyalty_program_modernvet</code></td>
+                <td class="field-desc">Auto-created on module install (<code>pet_sync_etl.loyalty_program_modernvet</code>)</td>
+                <td class="field-desc">Required for all loyalty card &amp; history sync</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- Flow diagram -->
