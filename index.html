@@ -176,11 +176,11 @@
       <!-- Payment Method Line id_from_ext -->
       <div class="how-to-card">
         <h4><span class="step-num">11</span> Payment Method Line <code>id_from_ext</code></h4>
-        <p>Invoice <code>payment_list[].payment_journal_code</code> looks up <code>account.payment.method.line</code> by <code>id_from_ext</code>.</p>
-        <p style="margin-top:8px;">Set in Odoo: <strong>Accounting → Configuration → Journals</strong> — open a journal, go to <strong>Incoming Payments</strong> tab, and fill in the <strong>External ID</strong> column for the relevant payment method line.</p>
+        <p>Invoice and refund <code>payment_list[].payment_journal_code</code> looks up <code>account.payment.method.line</code> by <code>id_from_ext</code>, scoped to the record's company and payment direction:</p>
         <ul style="margin-top:8px;">
-          <li>If not found: that payment entry is skipped with a warning in the log — invoice is posted but unpaid</li>
-          <li>The lookup is also scoped to the invoice's company</li>
+          <li><strong>Invoice</strong> (<code>data_type: "invoice"</code>) — looks up <strong>Incoming Payments</strong> method line. Set in Odoo: <strong>Accounting → Configuration → Journals</strong> → open a journal → <strong>Incoming Payments</strong> tab → fill in <strong>External ID</strong>.</li>
+          <li><strong>Refund</strong> (<code>data_type: "refund"</code>) — looks up <strong>Outgoing Payments</strong> method line. Set in Odoo: <strong>Accounting → Configuration → Journals</strong> → open a journal → <strong>Outgoing Payments</strong> tab → fill in <strong>External ID</strong>.</li>
+          <li>If not found: that payment entry is skipped with a warning in the log — credit note is posted but unpaid</li>
         </ul>
       </div>
 
@@ -272,6 +272,9 @@
     </button>
     <button class="tab-btn" onclick="switchTab('invoice')" id="tab-invoice">
       <span class="tab-icon">🧾</span> Invoice
+    </button>
+    <button class="tab-btn" onclick="switchTab('refund')" id="tab-refund">
+      <span class="tab-icon">↩️</span> Refund
     </button>
     <button class="tab-btn" onclick="switchTab('loyalty')" id="tab-loyalty">
       <span class="tab-icon">🎁</span> Loyalty History
@@ -654,7 +657,7 @@
               <tr><td class="field-name">partner_id.email</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Partner email (on auto-create)</td></tr>
               <tr><td class="field-name">partner_id.phone</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Partner phone (on auto-create)</td></tr>
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Invoice number e.g. <code>TRX-2026-00001</code>. Set on create only.</td></tr>
-              <tr><td class="field-name">move_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"out_invoice"</code> (default), <code>"in_invoice"</code>, <code>"out_refund"</code>, <code>"in_refund"</code></td></tr>
+              <tr><td class="field-name">move_type</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"out_invoice"</code> (default) or <code>"in_invoice"</code>. For credit notes use <code>data_type: "refund"</code> instead.</td></tr>
               <tr><td class="field-name">invoice_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Format: <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">invoice_date_due</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Due date. Format: <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">ref</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Source document reference</td></tr>
@@ -779,6 +782,162 @@
           <div class="alert alert-success" style="margin-top:16px;">
             <span class="alert-icon">🧮</span>
             <div>In this example: <code>actual payment = 500000 − 50000 (redeem) − 25000 (discount) = 425000</code>. The original <code>500000</code> is saved in <code>paid_amount_ext</code>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== REFUND TAB ===== -->
+<div class="tab-pane" id="pane-refund">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Refund / Credit Note</div>
+      <div class="section-subtitle">
+        <code>data_type: "refund"</code> or <code>"refunds"</code> &nbsp;·&nbsp; Target model: <code>account.move</code> (<code>out_refund</code>) &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists are silently skipped — no update is performed. <code>reversed_entry_id</code> must reference an invoice that exists and is fully paid (<code>in_payment</code> or <code>paid</code>), otherwise the record is skipped.</div>
+      </div>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <div>
+          <strong>Same JSON format as invoice.</strong> <code>move_type</code> is not required — <code>data_type: "refund"</code> always creates <code>out_refund</code>. When <code>state=posted</code>, the ETL will:
+          <ol style="margin-top:6px; padding-left:18px;">
+            <li>Post the credit note</li>
+            <li>Register outgoing payments from <code>payment_list</code> (method line matched by <code>id_from_ext</code> + <code>payment_type=outbound</code>)</li>
+            <li>Deduct earned loyalty points (<code>point_earning</code>) — JE: Debit Payable, Credit Revenue Deduction</li>
+            <li>Restore redeemed loyalty points (<code>point_redeem</code>) — JE: Debit Revenue Deduction, Credit Payable</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Header Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Match key for upsert</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer — matched by <code>id_from_ext</code>; auto-created if not found (requires <code>name</code>)</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External ID of customer</td></tr>
+              <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used to auto-create partner if not found</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Credit note number e.g. <code>RINV/2026/RF/001</code>. Set on create only.</td></tr>
+              <tr><td class="field-name">invoice_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">invoice_date_due</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Due date. Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">ref</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Source document reference</td></tr>
+              <tr><td class="field-name">narration</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Internal notes</td></tr>
+              <tr><td class="field-name">pet_name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Patient/pet name (custom field)</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Also sets analytic distribution on lines.</td></tr>
+              <tr><td class="field-name">reversed_entry_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of the original invoice being reversed. If not found in Odoo, the record is <strong>skipped</strong>.</td></tr>
+              <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code> or <code>"posted"</code> (default). <code>"posted"</code> triggers full auto-post flow.</td></tr>
+              <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Positive value. Adds a Global Discount line. Amount deducted from payment.</td></tr>
+              <tr><td class="field-name">point_earning</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Points originally earned on the invoice — will be deducted. JE: Debit Payable, Credit Revenue Deduction.</td></tr>
+              <tr><td class="field-name">point_earning_idr</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of earn deduction. Used as JE amount.</td></tr>
+              <tr><td class="field-name">point_redeem</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Points originally redeemed on the invoice — will be restored. JE: Debit Revenue Deduction, Credit Payable.</td></tr>
+              <tr><td class="field-name">point_redeem_idr</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of redeem restoration. Used as JE amount.</td></tr>
+              <tr><td class="field-name">invoice_line_ids</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Credit note lines — upserted by <code>id_from_ext</code>.</td></tr>
+              <tr><td class="field-name">payment_list</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Outgoing payments to register. Only applied when <code>state=posted</code> and credit note has no existing payments.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>invoice_line_ids — Credit Note Line</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Match key for upsert</td></tr>
+              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>product.template</code></td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line description</td></tr>
+              <tr><td class="field-name">quantity</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
+              <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
+              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100)</td></tr>
+              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Fixed amount discount</td></tr>
+              <tr><td class="field-name">price_subtotal</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only — mismatch logged</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>payment_list — Outgoing Payment Entry</h3></div>
+        <div class="alert alert-info" style="margin:16px 20px 0;">
+          <span class="alert-icon">💳</span>
+          <div><code>payment_journal_code</code> must match <code>id_from_ext</code> on an <strong>Outgoing</strong> <code>account.payment.method.line</code>. Set in Odoo: <strong>Accounting → Configuration → Journals</strong> → <strong>Outgoing Payments</strong> tab → <strong>External ID</strong> column.</div>
+        </div>
+        <div class="params-table-wrap" style="margin-top:1px;">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of outgoing <code>account.payment.method.line</code>. Determines both the journal and payment method.</td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Full refund amount. Also accepted as <code>paid_amount</code>. Stored as-is in <code>paid_amount_ext</code>.</td></tr>
+              <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Also accepted as <code>payment_date</code>. Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment note / communication</td></tr>
+              <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code></td></tr>
+              <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Example JSONL Record — Full Refund with Loyalty &amp; Outgoing Payment</h3></div>
+        <div class="card-body">
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"REFUND-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"RINV/2026/RF/001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>,
+    <span class="json-key">"street"</span>: <span class="json-str">"Jl. Sudirman 1"</span>,
+    <span class="json-key">"city"</span>: <span class="json-str">"Jakarta"</span>,
+    <span class="json-key">"email"</span>: <span class="json-str">"budi@example.com"</span>
+  },
+  <span class="json-key">"pet_name"</span>: <span class="json-str">"Max"</span>,
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"invoice_date_due"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"ref"</span>: <span class="json-str">"REFUND-SO-2026-001"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"WH-00001"</span>,
+  <span class="json-key">"reversed_entry_id"</span>: <span class="json-str">"INV-2026-001"</span>, <span class="json-comment">// id_from_ext of original invoice</span>
+  <span class="json-key">"invoice_line_ids"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"RSOL-001-01"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"product_uom"</span>: <span class="json-str">"Unit"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Royal Canin Maxi Adult 10kg"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
+      <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// Verification only</span>
+    }
+  ],
+  <span class="json-key">"narration"</span>: <span class="json-str">"Refund of TRX-2026-001"</span>,
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">35000</span>,
+  <span class="json-key">"payment_list"</span>: [
+    {
+      <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"CASH-EXT"</span>, <span class="json-comment">// id_from_ext of account.payment.method.line with payment_type=outbound</span>
+      <span class="json-key">"amount"</span>: <span class="json-num">1035000.0</span>,
+      <span class="json-key">"date"</span>: <span class="json-str">"2026-03-25"</span>,
+      <span class="json-key">"memo"</span>: <span class="json-str">"Refund Bank Transfer SO-2026-001"</span>,
+      <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"Bank Transfer"</span>,
+      <span class="json-key">"payment_type_card_brand_ext"</span>: <span class="json-str">""</span>
+    }
+  ],
+  <span class="json-key">"point_earning"</span>: <span class="json-num">2000</span>, <span class="json-comment">// points to deduct (originally earned on invoice)</span>
+  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">20000</span>,
+  <span class="json-key">"point_redeem"</span>: <span class="json-num">5000</span>, <span class="json-comment">// points to restore (originally redeemed on invoice)</span>
+  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">50000</span>
+}</pre>
           </div>
         </div>
       </div>
@@ -944,6 +1103,8 @@
         <div class="flow-step"><span class="step-icon">🧾</span> 4. Invoice + Payment</div>
         <div class="flow-arrow">→</div>
         <div class="flow-step"><span class="step-icon">🎁</span> 5. Loyalty History</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step"><span class="step-icon">↩️</span> 6. Refund + Outgoing Payment</div>
       </div>
 
       <div class="alert alert-info" style="margin-bottom:32px;">
@@ -1343,6 +1504,92 @@
         </div>
       </div>
 
+      <!-- STEP 6: Refund -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 6</span>
+          <span style="font-size:17px;font-weight:600;">Refund / Credit Note (<code>REFUND-2026-001</code>)</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">📋</span>
+          <div>
+            Creates a credit note reversing <code>INV-2026-001</code>. Requires the original invoice to be fully paid (<code>in_payment</code> or <code>paid</code>).<br>
+            The ETL adds a Loyalty Redemption line (<code>−50,000</code>) automatically from <code>point_redeem_idr</code>.<br>
+            <strong>Payment deduction:</strong> <code>actual_payment = 1,035,000 − 50,000 (redeem) = 985,000</code>.<br>
+            Loyalty earn deduction JE (−2,000 pts) and redeem restoration JE (+5,000 pts) are created after posting.<br>
+            <strong>Note:</strong> the credit note is a <em>standalone</em> document — it is not reconciled against the original invoice (which is already fully paid).
+          </div>
+        </div>
+        <div class="alert alert-warn" style="margin-bottom:12px;">
+          <span class="alert-icon">⚠️</span>
+          <div>
+            <strong>Outgoing payment method setup required:</strong> <code>payment_journal_code</code> must match <code>id_from_ext</code> on an <strong>Outgoing</strong> <code>account.payment.method.line</code>. Go to <strong>Accounting → Configuration → Journals → Outgoing Payments tab → External ID column</strong> and fill in the value.
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "refund",
+    "s3_location": "C:\\Users\\AXIOO\\Desktop\\workspace\\modernvet\\custom\\modernvet-odoo\\pet_sync_etl\\examples\\claude_should_not_touch_this\\refund",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"REFUND-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"RINV/2026/RF/001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+  },
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-03-25"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"reversed_entry_id"</span>: <span class="json-str">"INV-2026-001"</span>, <span class="json-comment">// id_from_ext of original paid invoice — required</span>
+  <span class="json-key">"invoice_line_ids"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"RLINE-001"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"CONSU-001"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
+      <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// verification only</span>
+    }
+  ],
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">35000</span>, <span class="json-comment">// adds Global Discount line: −35,000 (also deducted from payment)</span>
+  <span class="json-key">"payment_list"</span>: [
+    {
+      <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"CASH-EXT"</span>, <span class="json-comment">// id_from_ext of outgoing account.payment.method.line</span>
+      <span class="json-key">"amount"</span>: <span class="json-num">1035000.0</span>, <span class="json-comment">// pre-deduction: ETL subtracts 50000 (redeem) → actual 985000</span>
+      <span class="json-key">"date"</span>: <span class="json-str">"2026-03-25"</span>,
+      <span class="json-key">"memo"</span>: <span class="json-str">"Refund Bank Transfer SO-2026-001"</span>
+    }
+  ],
+  <span class="json-key">"point_earning"</span>: <span class="json-num">2000</span>, <span class="json-comment">// points to deduct — JE: Debit Payable, Credit Revenue Deduction</span>
+  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">20000</span>,
+  <span class="json-key">"point_redeem"</span>: <span class="json-num">5000</span>, <span class="json-comment">// points to restore — JE: Debit Revenue Deduction, Credit Payable; also adds Loyalty Redemption line</span>
+  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">50000</span> <span class="json-comment">// adds Loyalty Redemption line: −50,000 (also counted as deduction)</span>
+}</pre>
+            </div>
+            <div class="alert alert-success" style="margin-top:16px;">
+              <span class="alert-icon">🧮</span>
+              <div>In this example: <code>actual payment = 1,035,000 − 50,000 (redeem) − 35,000 (discount) = 950,000</code>. Credit note total = 890,000 − 35,000 − 50,000 = <strong>805,000</strong>. The refund is a standalone credit note — not reconciled against the original invoice (already paid).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 </div>
@@ -1364,7 +1611,7 @@
           <table class="params-table">
             <thead><tr><th>Body Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"loyalty_history"</code></td></tr>
+              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"refund"</code>, <code>"refunds"</code>, <code>"loyalty_history"</code></td></tr>
               <tr><td class="field-name">s3_location</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">S3 path (<code>bucket/prefix</code> or <code>bucket/path/to/file.json</code>) or local path when <code>local=true</code></td></tr>
               <tr><td class="field-name">local</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>false</code>. When <code>true</code>: reads from local filesystem, writes result CSV next to input file.</td></tr>
             </tbody>
