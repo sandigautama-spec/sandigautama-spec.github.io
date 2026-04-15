@@ -276,6 +276,9 @@
     <button class="tab-btn" onclick="switchTab('refund')" id="tab-refund">
       <span class="tab-icon">↩️</span> Refund
     </button>
+    <button class="tab-btn" onclick="switchTab('deposit')" id="tab-deposit">
+      <span class="tab-icon">💰</span> Deposit
+    </button>
     <button class="tab-btn" onclick="switchTab('loyalty')" id="tab-loyalty">
       <span class="tab-icon">🎁</span> Loyalty History
     </button>
@@ -945,6 +948,139 @@
   </section>
 </div>
 
+<!-- ===== DEPOSIT TAB ===== -->
+<div class="tab-pane" id="pane-deposit">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Customer Deposit</div>
+      <div class="section-subtitle">
+        <code>data_type: "deposit"</code> or <code>"deposits"</code> &nbsp;·&nbsp; Target model: <code>account.payment</code> (inbound) &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <div>
+          <strong>What this does:</strong> Creates a standalone inbound payment posted against a <em>customer deposit account</em> (not the default receivable). The deposit is then applied to an invoice by referencing its <code>id_from_ext</code> in the invoice's <code>payment_list[].payment_id_from_ext</code>.<br><br>
+          <strong>Accounting flow:</strong><br>
+          <em>On deposit creation:</em> Debit Bank/Cash → Credit Customer Deposit Account<br>
+          <em>On invoice application:</em> Transfer JE: Debit Customer Deposit Account → Credit Receivable, reducing invoice residual
+        </div>
+      </div>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists are skipped (counted as updated). To apply a deposit to an invoice, use <code>payment_id_from_ext</code> in the invoice's <code>payment_list</code> — see Invoice schema.<br><br>
+          <strong>Prerequisites:</strong> Company must have <strong>Customer Deposit Account</strong> and <strong>Customer Deposit Transfer Journal</strong> configured in <em>Settings → Accounting → Customer Deposit</em>. The deposit account must have <strong>reconcile = True</strong> (auto-set by the ETL on first use).
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key. Already-existing records are skipped.</td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Deposit amount</td></tr>
+              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of an <strong>Inbound</strong> <code>account.payment.method.line</code>. Determines journal and payment method.</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer — matched by <code>id_from_ext</code>; auto-created if not found (requires <code>name</code>)</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External ID of customer</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher name — overrides auto-generated JE name</td></tr>
+              <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment communication / reference</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Used for analytic distribution on the deposit JE line.</td></tr>
+              <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code></td></tr>
+              <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Applying a Deposit to an Invoice — <code>payment_list[].payment_id_from_ext</code></h3></div>
+        <div class="card-body">
+          <div class="alert alert-info" style="margin-bottom:12px;">
+            <span class="alert-icon">🔗</span>
+            <div>To apply a deposit to an invoice, include a <code>payment_list</code> entry with <code>payment_id_from_ext</code> (instead of <code>payment_journal_code</code>) in the invoice JSON. The deposit must exist and be posted.</div>
+          </div>
+          <div class="params-table-wrap">
+            <table class="params-table">
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">payment_id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of the <code>account.payment</code> deposit to apply</td></tr>
+                <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Amount to apply. Capped to: min(deposit available balance, invoice residual). If omitted, uses full available balance.</td></tr>
+                <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Transfer JE date</td></tr>
+                <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Transfer JE reference note</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="alert alert-info" style="margin-top:16px;">
+            <span class="alert-icon">🔄</span>
+            <div><strong>Idempotent:</strong> If the deposit credit line is already fully reconciled, the application is silently skipped — safe to re-sync.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Example — Deposit then Invoice with Deposit Applied</h3></div>
+        <div class="card-body">
+          <div style="margin-bottom:8px;font-weight:600;font-size:13px;">Step 1 — Create deposit (<code>data_type: "deposit"</code>)</div>
+          <div class="code-block" style="margin-bottom:20px;">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"DEP-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+  },
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"date"</span>: <span class="json-str">"2026-04-01"</span>,
+  <span class="json-key">"amount"</span>: <span class="json-num">500000.0</span>,
+  <span class="json-key">"memo"</span>: <span class="json-str">"Advance deposit April 2026"</span>,
+  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>, <span class="json-comment">// id_from_ext of inbound account.payment.method.line</span>
+  <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"BCA Transfer"</span>
+}</pre>
+          </div>
+          <div style="margin-bottom:8px;font-weight:600;font-size:13px;">Step 2 — Invoice that consumes the deposit (<code>data_type: "invoice"</code>)</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-2026-DEP-001"</span>,
+  <span class="json-key">"partner_id"</span>: {<span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>},
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-04-05"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"invoice_line_ids"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"IDEP-L01"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>
+    }
+  ],
+  <span class="json-key">"payment_list"</span>: [
+    {
+      <span class="json-key">"payment_id_from_ext"</span>: <span class="json-str">"DEP-2026-001"</span>, <span class="json-comment">// id_from_ext of deposit — triggers transfer JE</span>
+      <span class="json-key">"amount"</span>: <span class="json-num">300000.0</span>, <span class="json-comment">// partial application; capped to min(deposit balance, invoice residual)</span>
+      <span class="json-key">"date"</span>: <span class="json-str">"2026-04-05"</span>,
+      <span class="json-key">"memo"</span>: <span class="json-str">"Apply deposit DEP-2026-001"</span>
+    }
+  ]
+}</pre>
+          </div>
+          <div class="alert alert-info" style="margin-top:16px;">
+            <span class="alert-icon">🧮</span>
+            <div>
+              Invoice total = 300,000. Deposit applies 300,000 → <code>amount_residual = 0</code>, <code>payment_state = in_payment</code>.<br>
+              Deposit still has 200,000 remaining balance (500,000 − 300,000) — can be applied to future invoices.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
 <!-- ===== LOYALTY HISTORY TAB ===== -->
 <div class="tab-pane" id="pane-loyalty">
   <section class="section">
@@ -1073,6 +1209,21 @@
                 <td class="field-desc">Invoice journal + payable account + revenue deduction account — required for point earn JE on invoice</td>
               </tr>
               <tr>
+                <td class="field-name">Customer Deposit Account</td>
+                <td class="field-desc">Settings → Accounting → Customer Deposit → Deposit Account</td>
+                <td class="field-desc">Account used as counterpart on deposit payments (replaces default receivable). Must have <code>reconcile=True</code> (auto-set).</td>
+              </tr>
+              <tr>
+                <td class="field-name">Customer Deposit Transfer Journal</td>
+                <td class="field-desc">Settings → Accounting → Customer Deposit → Deposit Transfer Journal</td>
+                <td class="field-desc">Journal used for the transfer entry when applying a deposit to an invoice (typically a General journal).</td>
+              </tr>
+              <tr>
+                <td class="field-name">Inbound Payment Method Line <code>id_from_ext</code></td>
+                <td class="field-desc">Accounting → Configuration → Journals → Incoming Payments tab → External ID column</td>
+                <td class="field-desc"><code>"PMETHOD-EXT-0001"</code> — required for deposit <code>payment_journal_code</code>. Must be an <strong>Inbound</strong> method line.</td>
+              </tr>
+              <tr>
                 <td class="field-name"><code>product_global_discount</code></td>
                 <td class="field-desc">Auto-created on module install (<code>pet_sync_etl.product_global_discount</code>)</td>
                 <td class="field-desc">Used for <code>global_discount_amount</code> lines on sales &amp; invoices</td>
@@ -1093,7 +1244,7 @@
       </div>
 
       <!-- Flow diagram -->
-      <div class="flow" style="margin-bottom:36px; flex-wrap:wrap; gap:8px;">
+      <div class="flow" style="margin-bottom:16px; flex-wrap:wrap; gap:8px;">
         <div class="flow-step"><span class="step-icon">📦</span> 1. Product (consu)</div>
         <div class="flow-arrow">→</div>
         <div class="flow-step"><span class="step-icon">🔧</span> 2. Product (service)</div>
@@ -1105,6 +1256,13 @@
         <div class="flow-step"><span class="step-icon">🎁</span> 5. Loyalty History</div>
         <div class="flow-arrow">→</div>
         <div class="flow-step"><span class="step-icon">↩️</span> 6. Refund + Outgoing Payment</div>
+      </div>
+      <div class="flow" style="margin-bottom:36px; flex-wrap:wrap; gap:8px;">
+        <div class="flow-step" style="background:var(--surface-alt, #f0f4ff); border:1px solid var(--border);"><span class="step-icon">💰</span> 7a. Deposit (standalone)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="background:var(--surface-alt, #f0f4ff); border:1px solid var(--border);"><span class="step-icon">🧾</span> 7b. Invoice referencing Deposit</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="background:var(--surface-alt, #f0f4ff); border:1px solid var(--border);"><span class="step-icon">✅</span> Transfer JE reconciles deposit → invoice</div>
       </div>
 
       <div class="alert alert-info" style="margin-bottom:32px;">
@@ -1590,6 +1748,124 @@
         </div>
       </div>
 
+      <!-- STEP 7: Deposit → Invoice -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:var(--primary);color:#fff;font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;">Step 7</span>
+          <span style="font-size:17px;font-weight:600;">Deposit → Invoice with Deposit Applied</span>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px;">
+          <span class="alert-icon">💰</span>
+          <div>
+            Two separate syncs. First, create the deposit payment (<code>data_type: "deposit"</code>). Then, create the invoice (<code>data_type: "invoice"</code>) with a <code>payment_list</code> entry that references the deposit via <code>payment_id_from_ext</code>.<br><br>
+            The ETL creates a transfer journal entry: <strong>Debit Customer Deposit Account → Credit Receivable</strong>, then reconciles the deposit credit line with the transfer debit line. The invoice residual drops by the applied amount.<br><br>
+            <strong>Amounts:</strong> Deposit = 500,000. Invoice = 300,000. Applied = 300,000 → <code>residual = 0</code>. Remaining deposit balance = 200,000.
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;font-weight:600;font-size:14px;color:var(--text-secondary);">Step 7a — Deposit</div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "deposit",
+    "s3_location": "C:\\path\\to\\deposit.json",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"DEP-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+  },
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"date"</span>: <span class="json-str">"2026-04-01"</span>,
+  <span class="json-key">"amount"</span>: <span class="json-num">500000.0</span>,
+  <span class="json-key">"memo"</span>: <span class="json-str">"Advance deposit April 2026"</span>,
+  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>, <span class="json-comment">// id_from_ext of INBOUND account.payment.method.line</span>
+  <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"BCA Transfer"</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;font-weight:600;font-size:14px;color:var(--text-secondary);">Step 7b — Invoice referencing the deposit</div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header"><h3>Trigger</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "invoice",
+    "s3_location": "C:\\path\\to\\invoice_with_deposit.json",
+    "local": true
+  }'</pre>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Payload</h3></div>
+          <div class="card-body">
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"INV-2026-DEP-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"TRX-2026-DEP-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+  },
+  <span class="json-key">"invoice_date"</span>: <span class="json-str">"2026-04-05"</span>,
+  <span class="json-key">"invoice_date_due"</span>: <span class="json-str">"2026-04-05"</span>,
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"invoice_line_ids"</span>: [
+    {
+      <span class="json-key">"id_from_ext"</span>: <span class="json-str">"IDEP-L01"</span>,
+      <span class="json-key">"product_id"</span>: <span class="json-str">"SVC-001"</span>,
+      <span class="json-key">"name"</span>: <span class="json-str">"Basic Health Checkup"</span>,
+      <span class="json-key">"quantity"</span>: <span class="json-num">2.0</span>,
+      <span class="json-key">"price_unit"</span>: <span class="json-num">150000.0</span>
+    }
+  ],
+  <span class="json-key">"payment_list"</span>: [
+    {
+      <span class="json-key">"payment_id_from_ext"</span>: <span class="json-str">"DEP-2026-001"</span>, <span class="json-comment">// references deposit — triggers transfer JE, NOT a direct payment</span>
+      <span class="json-key">"amount"</span>: <span class="json-num">300000.0</span>, <span class="json-comment">// partial application; capped to min(deposit balance, invoice residual)</span>
+      <span class="json-key">"date"</span>: <span class="json-str">"2026-04-05"</span>,
+      <span class="json-key">"memo"</span>: <span class="json-str">"Apply deposit DEP-2026-001"</span>
+    }
+  ]
+}</pre>
+            </div>
+            <div class="alert alert-success" style="margin-top:16px;">
+              <span class="alert-icon">🧮</span>
+              <div>
+                <strong>Result:</strong> Invoice total = 300,000. Deposit applied = 300,000 → <code>amount_residual = 0</code>.<br>
+                A transfer JE is created with ref <code>"Deposit DEP-2026-001 applied to INV-2026-DEP-001"</code>.<br>
+                Deposit remaining balance = 500,000 − 300,000 = <strong>200,000</strong> (can be applied to future invoices).<br>
+                <strong>Idempotent:</strong> re-syncing the invoice skips the deposit application if the deposit line is already reconciled.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 </div>
@@ -1611,7 +1887,7 @@
           <table class="params-table">
             <thead><tr><th>Body Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"refund"</code>, <code>"refunds"</code>, <code>"loyalty_history"</code></td></tr>
+              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"refund"</code>, <code>"refunds"</code>, <code>"deposit"</code>, <code>"deposits"</code>, <code>"loyalty_history"</code></td></tr>
               <tr><td class="field-name">s3_location</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">S3 path (<code>bucket/prefix</code> or <code>bucket/path/to/file.json</code>) or local path when <code>local=true</code></td></tr>
               <tr><td class="field-name">local</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>false</code>. When <code>true</code>: reads from local filesystem, writes result CSV next to input file.</td></tr>
             </tbody>
