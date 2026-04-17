@@ -265,9 +265,10 @@ a:hover { text-decoration: underline; }
   border-radius: 12px;
   line-height: 1.5;
 }
-.pill-required { background: #fde8e8; color: var(--danger); }
-.pill-optional { background: #e8f2fd; color: var(--info); }
-.pill-create   { background: #fff3cd; color: #856404; }
+.pill-required    { background: #fde8e8; color: var(--danger); }
+.pill-optional    { background: #e8f2fd; color: var(--info); }
+.pill-create      { background: #fff3cd; color: #856404; }
+.pill-conditional { background: #e8f5e9; color: #2e7d32; }
 
 /* ===== CODE BLOCK ===== */
 .code-block {
