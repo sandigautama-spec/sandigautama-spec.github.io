@@ -545,6 +545,7 @@
               <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code></td></tr>
               <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Adds a negative-price Global Discount line to the order</td></tr>
               <tr><td class="field-name">loyalty_redemption_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Adds a negative-price Loyalty Redemption line to the order</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">SO number override e.g. <code>SO-2026-001</code>. Set on create only; bypasses sequence constraint.</td></tr>
               <tr><td class="field-name">order_line</td><td class="field-type">array</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Lines are fully replaced when present. See <strong>Order Line</strong> below.</td></tr>
             </tbody>
           </table>
@@ -561,7 +562,8 @@
               <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>product.template</code></td></tr>
               <tr><td class="field-name">product_uom_qty</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
               <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
-              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100)</td></tr>
+              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100). Ignored when <code>discount_fixed</code> is set.</td></tr>
+              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Fixed-amount discount per line (IDR). When set, overrides <code>discount</code> %.</td></tr>
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line description</td></tr>
               <tr><td class="field-name">product_uom</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">UOM name within the product's private UOM category</td></tr>
             </tbody>
@@ -648,7 +650,12 @@
             <li>Add global discount line if <code>global_discount &lt; 0</code></li>
             <li>Post the invoice</li>
             <li>Create loyalty card history + journal entries</li>
-            <li>Register payments from <code>payment_list</code> (actual amount = <code>paid_amount − deduction lines</code>)</li>
+            <li>Register payments from <code>payment_list</code>:
+              <ul style="margin-top:4px;">
+                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>paid_amount − deduction lines</code></li>
+                <li>If entry has <code>payment_id_from_ext</code> → applies an existing deposit credit via a transfer journal entry (no new payment created)</li>
+              </ul>
+            </li>
           </ol>
         </div>
       </div>
@@ -699,7 +706,8 @@
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line description</td></tr>
               <tr><td class="field-name">quantity</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
               <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
-              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100)</td></tr>
+              <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100). Ignored when <code>discount_fixed</code> is set.</td></tr>
+              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Fixed-amount discount per line (IDR). When set, overrides <code>discount</code> %.</td></tr>
               <tr><td class="field-name">price_subtotal</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only — mismatch logged</td></tr>
             </tbody>
           </table>
@@ -710,18 +718,19 @@
         <div class="card-header"><h3>payment_list — Payment Entry</h3></div>
         <div class="alert alert-info" style="margin:16px 20px 0;">
           <span class="alert-icon">💳</span>
-          <div>Actual registered amount = <code>paid_amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The original <code>paid_amount</code> is always stored in <code>account.payment.paid_amount_ext</code>. <code>payment_journal_code</code> must match <code>id_from_ext</code> on <code>account.payment.method.line</code>.</div>
+          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>paid_amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The original <code>paid_amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
         </div>
         <div class="params-table-wrap" style="margin-top:1px;">
           <table class="params-table">
             <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of <code>account.payment.method.line</code>. Determines both the journal and payment method.</td></tr>
-              <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Full amount from external system. Also accepted as <code>paid_amount</code>. Stored as-is in <code>paid_amount_ext</code>. Actual registered amount is reduced by deductions.</td></tr>
+              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-conditional">Conditional</span></td><td class="field-desc"><code>id_from_ext</code> of an inbound <code>account.payment.method.line</code>. Creates a new <code>account.payment</code>. Mutually exclusive with <code>payment_id_from_ext</code>.</td></tr>
+              <tr><td class="field-name">payment_id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-conditional">Conditional</span></td><td class="field-desc"><code>id_from_ext</code> of an existing posted deposit (<code>account.payment</code>, inbound). Applies the deposit credit to this invoice via a transfer journal entry. Mutually exclusive with <code>payment_journal_code</code>.</td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Full amount from external system. Also accepted as <code>paid_amount</code>. Stored as-is in <code>paid_amount_ext</code>. Actual registered amount is reduced by deductions (bank/cash payments only).</td></tr>
               <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Also accepted as <code>payment_date</code>. Format: <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment note / communication</td></tr>
-              <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code> for external tracking</td></tr>
-              <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
+              <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code> for external tracking (bank/cash payments only)</td></tr>
+              <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code> (bank/cash payments only)</td></tr>
             </tbody>
           </table>
         </div>
