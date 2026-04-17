@@ -128,6 +128,7 @@
         <p>All syncs are safe to re-run. Records are matched by <code>id_from_ext</code>:</p>
         <ul>
           <li><strong>Product / Sales / Invoice</strong> — upsert (create or update)</li>
+          <li><strong>Deposit / Deposit Refund</strong> — create-only; existing <code>id_from_ext</code> is skipped</li>
           <li><strong>Loyalty History</strong> — create-only; existing <code>id_from_ext</code> is skipped</li>
           <li>Posted/cancelled invoices — skipped on update attempt</li>
         </ul>
@@ -180,6 +181,8 @@
         <ul style="margin-top:8px;">
           <li><strong>Invoice</strong> (<code>data_type: "invoice"</code>) — looks up <strong>Incoming Payments</strong> method line. Set in Odoo: <strong>Accounting → Configuration → Journals</strong> → open a journal → <strong>Incoming Payments</strong> tab → fill in <strong>External ID</strong>.</li>
           <li><strong>Refund</strong> (<code>data_type: "refund"</code>) — looks up <strong>Outgoing Payments</strong> method line. Set in Odoo: <strong>Accounting → Configuration → Journals</strong> → open a journal → <strong>Outgoing Payments</strong> tab → fill in <strong>External ID</strong>.</li>
+          <li><strong>Deposit</strong> (<code>data_type: "deposit"</code>) — looks up <strong>Incoming Payments</strong> method line (same setup as Invoice).</li>
+          <li><strong>Deposit Refund</strong> (<code>data_type: "deposit_refund"</code>) — looks up <strong>Outgoing Payments</strong> method line (same setup as Refund).</li>
           <li>If not found: that payment entry is skipped with a warning in the log — credit note is posted but unpaid</li>
         </ul>
       </div>
@@ -278,6 +281,9 @@
     </button>
     <button class="tab-btn" onclick="switchTab('deposit')" id="tab-deposit">
       <span class="tab-icon">💰</span> Deposit
+    </button>
+    <button class="tab-btn" onclick="switchTab('deposit-refund')" id="tab-deposit-refund">
+      <span class="tab-icon">↪️</span> Deposit Refund
     </button>
     <button class="tab-btn" onclick="switchTab('loyalty')" id="tab-loyalty">
       <span class="tab-icon">🎁</span> Loyalty History
@@ -1073,6 +1079,108 @@
             <div>
               Invoice total = 300,000. Deposit applies 300,000 → <code>amount_residual = 0</code>, <code>payment_state = in_payment</code>.<br>
               Deposit still has 200,000 remaining balance (500,000 − 300,000) — can be applied to future invoices.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===== DEPOSIT REFUND TAB ===== -->
+<div class="tab-pane" id="pane-deposit-refund">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Customer Deposit Refund</div>
+      <div class="section-subtitle">
+        <code>data_type: "deposit_refund"</code> or <code>"deposit_refunds"</code> &nbsp;·&nbsp; Target model: <code>account.payment</code> (outbound) &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <div>
+          <strong>What this does:</strong> Creates a standalone outbound payment posted against the <em>customer deposit account</em>, then directly reconciles it against the original inbound deposit's credit line on that same account — no transfer JE needed.<br><br>
+          <strong>Accounting flow:</strong><br>
+          <em>Original deposit (inbound):</em> Debit Bank/Cash → Credit Customer Deposit Account<br>
+          <em>Deposit refund (outbound):</em> Debit Customer Deposit Account → Credit Bank/Cash<br>
+          <em>Reconcile:</em> Both Customer Deposit Account lines cancel each other out
+        </div>
+      </div>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists are skipped (counted as updated).<br><br>
+          <strong>original_deposit_id not found:</strong> Record is <strong>skipped</strong> (not errored) — the original inbound deposit must exist and be posted before syncing its refund.<br><br>
+          <strong>Prerequisites:</strong> Company must have <strong>Customer Deposit Account</strong> configured in <em>Settings → Accounting → Customer Deposit</em>. The <code>payment_journal_code</code> must reference an <strong>Outgoing Payments</strong> method line.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key. Already-existing records are skipped.</td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">number</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Refund amount</td></tr>
+              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of an <strong>Outgoing</strong> <code>account.payment.method.line</code>. Determines journal and payment method.</td></tr>
+              <tr><td class="field-name">original_deposit_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of the original inbound deposit to reconcile against. Record is <strong>skipped</strong> if not found in Odoo.</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer — matched by <code>id_from_ext</code>; auto-created if not found (requires <code>name</code>)</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External ID of customer</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher name — overrides auto-generated JE name</td></tr>
+              <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Format: <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment communication / reference</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Used for analytic distribution on the refund JE line.</td></tr>
+              <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code></td></tr>
+              <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Example — Full Deposit Lifecycle (Received → Refunded)</h3></div>
+        <div class="card-body">
+          <div style="margin-bottom:8px;font-weight:600;font-size:13px;">Step 1 — Create deposit (<code>data_type: "deposit"</code>)</div>
+          <div class="code-block" style="margin-bottom:20px;">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"DEP-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"DEP-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"Budi Santoso"</span>
+  },
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"date"</span>: <span class="json-str">"2026-04-01"</span>,
+  <span class="json-key">"amount"</span>: <span class="json-num">500000.0</span>,
+  <span class="json-key">"memo"</span>: <span class="json-str">"Advance deposit April 2026"</span>,
+  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-INBOUND-001"</span>, <span class="json-comment">// id_from_ext of inbound account.payment.method.line</span>
+  <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"BCA Transfer"</span>
+}</pre>
+          </div>
+          <div style="margin-bottom:8px;font-weight:600;font-size:13px;">Step 2 — Refund the deposit (<code>data_type: "deposit_refund"</code>)</div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"DEP-REF-2026-001"</span>,
+  <span class="json-key">"name"</span>: <span class="json-str">"DEP-REF-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {<span class="json-key">"id_from_ext"</span>: <span class="json-str">"CUST-001"</span>},
+  <span class="json-key">"warehouse_id"</span>: <span class="json-str">"3296"</span>,
+  <span class="json-key">"date"</span>: <span class="json-str">"2026-04-10"</span>,
+  <span class="json-key">"amount"</span>: <span class="json-num">500000.0</span>,
+  <span class="json-key">"memo"</span>: <span class="json-str">"Full deposit refund - customer cancelled"</span>,
+  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-OUTBOUND-001"</span>, <span class="json-comment">// id_from_ext of outbound account.payment.method.line</span>
+  <span class="json-key">"payment_type_name_ext"</span>: <span class="json-str">"BCA Transfer"</span>,
+  <span class="json-key">"original_deposit_id"</span>: <span class="json-str">"DEP-2026-001"</span> <span class="json-comment">// id_from_ext of the original inbound deposit</span>
+}</pre>
+          </div>
+          <div class="alert alert-info" style="margin-top:16px;">
+            <span class="alert-icon">🧮</span>
+            <div>
+              After Step 2: the 500,000 debit line (refund) reconciles with the 500,000 credit line (original deposit) on the Customer Deposit Account — both lines are marked <code>reconciled = True</code>.<br>
+              Partial refund is also supported: send <code>amount</code> less than the original deposit; the remaining balance stays unreconciled and can be applied to future invoices or refunded later.
             </div>
           </div>
         </div>
