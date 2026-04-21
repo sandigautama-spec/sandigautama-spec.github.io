@@ -291,6 +291,9 @@
     <button class="tab-btn" onclick="switchTab('wellness')" id="tab-wellness">
       <span class="tab-icon">💊</span> Wellness Package
     </button>
+    <button class="tab-btn" onclick="switchTab('wellness-redemption')" id="tab-wellness-redemption">
+      <span class="tab-icon">🎟️</span> Wellness Redemption
+    </button>
     <button class="tab-btn" onclick="switchTab('membership')" id="tab-membership">
       <span class="tab-icon">🏷️</span> Membership Purchase
     </button>
@@ -1415,6 +1418,108 @@
   </section>
 </div>
 
+<!-- ===== WELLNESS REDEMPTION TAB ===== -->
+<div class="tab-pane" id="pane-wellness-redemption">
+  <section class="section">
+    <div class="container">
+      <div class="section-title">Wellness Redemption</div>
+      <div class="section-subtitle">
+        <code>data_type: "wellness_redemption"</code> or <code>"wellness_redemptions"</code> &nbsp;·&nbsp; Creates a posted <code>account.move</code> (Journal Entry) &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
+      </div>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠️</span>
+        <div><strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists as an <code>account.move</code> with <code>move_type=entry</code> are silently skipped — no update is performed.</div>
+      </div>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">⚙️</span>
+        <div>
+          <strong>Required company config</strong> — set in <em>Settings → Accounting → Wellness Package</em>:
+          <ul style="margin-top:6px; padding-left:18px;">
+            <li><code>wellness_sale_journal_id</code> — Journal for the JE (type: <code>sale</code>)</li>
+            <li><code>wellness_accrued_account_id</code> — Account debited (moves balance out of accrual)</li>
+            <li><code>wellness_revenue_account_id</code> — Revenue account credited (recognizes actual revenue)</li>
+            <li><code>wellness_analytic_account_id</code> — Analytic account applied to the credit line (optional)</li>
+          </ul>
+          Each record produces one posted Journal Entry: <strong>Dr.</strong> accrued account / <strong>Cr.</strong> revenue account + analytic.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Parameters</h3></div>
+        <div class="params-table-wrap">
+          <table class="params-table">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key — skipped if an <code>account.move (entry)</code> with this value already exists</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>)</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External customer ID</td></tr>
+              <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Required only when auto-creating a new partner</td></tr>
+              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of a <code>product.template</code> in Odoo — must exist</td></tr>
+              <tr><td class="field-name">product_barcode</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product barcode from Digitail — used in JE ref and line description</td></tr>
+              <tr><td class="field-name">product_name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product name from Digitail — used in JE ref and line description</td></tr>
+              <tr><td class="field-name">transaction_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — the redemption date; used as JE date. Sourced from <code>redeemed_at</code> on Digitail side.</td></tr>
+              <tr><td class="field-name">appointment_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Appointment ID from Digitail — used in ref/line description: <code>Ticket Redeem on {appointment_id} for {barcode} - {product_name}</code></td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">float</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Visit type amount based on the linked product. Must be &gt; 0. Used for both debit and credit lines.</td></tr>
+              <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used as JE <code>narration</code> (internal note)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>JSON Example</h3></div>
+        <div class="card-body">
+          <div class="code-block">
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"WR-2026-001"</span>,
+  <span class="json-key">"partner_id"</span>: {
+    <span class="json-key">"id_from_ext"</span>: <span class="json-str">"C-001"</span>,
+    <span class="json-key">"name"</span>: <span class="json-str">"John Doe"</span>
+  },
+  <span class="json-key">"product_id"</span>: <span class="json-str">"PROD-WP-001"</span>,
+  <span class="json-key">"product_barcode"</span>: <span class="json-str">"WP-BARCODE-001"</span>,
+  <span class="json-key">"product_name"</span>: <span class="json-str">"Wellness Package Gold"</span>,
+  <span class="json-key">"transaction_date"</span>: <span class="json-str">"2026-04-21"</span>,
+  <span class="json-key">"appointment_id"</span>: <span class="json-str">"APT-2026-001"</span>,
+  <span class="json-key">"amount"</span>: <span class="json-num">150000.0</span>,
+  <span class="json-key">"description"</span>: <span class="json-str">"Optional internal note"</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>What Gets Created</h3></div>
+        <div class="card-body">
+          <ol style="padding-left:18px; line-height:2;">
+            <li><strong>Journal Entry</strong> (move_type=entry) — posted immediately; journal = <code>wellness_sale_journal_id</code>; date = <code>transaction_date</code>; ref = <code>Ticket Redeem on {appointment_id} for {barcode} - {product_name}</code></li>
+            <li><strong>Debit line</strong> — account = <code>wellness_accrued_account_id</code>; amount = <code>amount</code></li>
+            <li><strong>Credit line</strong> — account = <code>wellness_revenue_account_id</code>; amount = <code>amount</code>; analytic_distribution = <code>wellness_analytic_account_id</code> (100%) if configured</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>Curl Example</h3></div>
+        <div class="card-body">
+          <div class="code-block">
+            <pre>curl -s -X POST http://localhost:8069/api/v1/etl/notifications \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY_HERE" \
+  -d '{
+    "data_type": "wellness_redemption",
+    "s3_location": "bucket/prefix/wellness_redemption_2026-04-21.jsonl"
+  }'</pre>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</div>
+
 <!-- ===== MEMBERSHIP PURCHASE TAB ===== -->
 <div class="tab-pane" id="pane-membership">
   <section class="section">
@@ -1589,7 +1694,7 @@
               <tr>
                 <td class="field-name">Wellness Package Config</td>
                 <td class="field-desc">Settings → Accounting → Wellness Package</td>
-                <td class="field-desc"><code>wellness_warehouse_id</code>, <code>wellness_sale_journal_id</code>, <code>wellness_accrued_account_id</code></td>
+                <td class="field-desc"><code>wellness_warehouse_id</code>, <code>wellness_sale_journal_id</code>, <code>wellness_accrued_account_id</code>, <code>wellness_revenue_account_id</code>, <code>wellness_analytic_account_id</code> (optional)</td>
               </tr>
               <tr>
                 <td class="field-name">Membership Purchase Config</td>
