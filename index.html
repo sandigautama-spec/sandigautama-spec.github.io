@@ -374,6 +374,7 @@
                 <tr><td class="field-name">parent_id</td><td class="field-type">string | object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">String = <code>id_from_ext</code> of parent, or nested Category object (recursive)</td></tr>
                 <tr><td class="field-name">property_cost_method</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"standard"</code>, <code>"average"</code>, <code>"fifo"</code>. Default: <code>"standard"</code></td></tr>
                 <tr><td class="field-name">property_valuation</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"manual_periodic"</code> or <code>"real_time"</code>. Default: <code>"manual_periodic"</code></td></tr>
+                <tr><td class="field-name">deleted_at</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>deleted_at_ext</code> on the category for informational purposes</td></tr>
               </tbody>
             </table>
           </div>
@@ -1331,11 +1332,12 @@
         <div>
           <strong>Required company config</strong> — set in <em>Settings → Accounting → Wellness Package</em>:
           <ul style="margin-top:6px; padding-left:18px;">
-            <li><code>wellness_warehouse_id</code> — HQ warehouse used for all wellness SOs</li>
-            <li><code>wellness_sale_journal_id</code> — Accrued sales journal for the invoice (type: <code>sale</code>)</li>
-            <li><code>wellness_accrued_account_id</code> — Income account overriding all invoice lines</li>
+            <li><code>wellness_warehouse_id</code> — warehouse used for all wellness SOs</li>
+            <li><code>wellness_sale_journal_id</code> — sales journal for the invoice (type: <code>sale</code>)</li>
+            <li><code>wellness_product_id</code> — service product used as the SO/invoice line item (income account follows product category)</li>
+            <li><code>voucher_product_id</code> — service product for voucher deduction lines (Settings → Accounting → Voucher)</li>
           </ul>
-          Each record produces: one confirmed SO → one posted invoice (accrued journal, accrued account) → one reconciled incoming payment.
+          Each record produces: one confirmed SO → one posted invoice → one reconciled incoming payment. Point earn/redeem and voucher deductions are handled as invoice lines.
         </div>
       </div>
 
@@ -1348,16 +1350,21 @@
               <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key — skipped if a <code>sale.order</code> with this value already exists</td></tr>
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Order number — used as SO name and invoice <code>ref</code></td></tr>
               <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>). <code>mobile_user_id</code> is updated on existing partners when provided.</td></tr>
-              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Digitail customer ID (not the mobile user ID)</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External customer ID</td></tr>
               <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Required only when auto-creating a new partner</td></tr>
               <tr><td class="field-name">partner_id.mobile_user_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Mobile app user ID — stored on <code>res.partner.mobile_user_id</code>; updated even when partner already exists</td></tr>
               <tr><td class="field-name">partner_id.*</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Standard contact fields: <code>phone</code>, <code>mobile</code>, <code>email</code>, <code>street</code>, <code>street2</code>, <code>city</code>, <code>zip</code>, <code>ref</code>, <code>comment</code>, <code>state_id</code> (match by name), <code>country_id</code> (match by ISO code)</td></tr>
-              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of a <code>product.template</code> — must be <code>type=service</code></td></tr>
               <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line item text — combined with <code>expired_at</code> to form the SO/invoice line name: <code>"{description} DD/MM/YYYY"</code></td></tr>
               <tr><td class="field-name">expired_at</td><td class="field-type">datetime</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Package expiry date — formatted <code>DD/MM/YYYY</code> and appended to line name</td></tr>
               <tr><td class="field-name">transaction_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — used as SO <code>date_order</code> and invoice <code>invoice_date</code></td></tr>
-              <tr><td class="field-name">amount</td><td class="field-type">float</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Actual payment amount — used as <code>price_unit</code> on the SO line and as the incoming payment amount. Must be &gt; 0.</td></tr>
-              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of an inbound <code>account.payment.method.line</code> — determines the payment journal (e.g. Xendit). Set via Accounting → Journals → Incoming Payments tab → External ID column.</td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">float</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Payment amount — already deducted by voucher, NOT by point_redeem. SO line price = <code>amount + voucher_amount</code>. Must be &gt; 0.</td></tr>
+              <tr><td class="field-name">point_earning</td><td class="field-type">float</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned — triggers earn JE (same logic as invoice) and loyalty card update</td></tr>
+              <tr><td class="field-name">point_earning_idr</td><td class="field-type">float</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value for the earn journal entry amount</td></tr>
+              <tr><td class="field-name">point_redeem</td><td class="field-type">float</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points redeemed — added as a negative invoice line; deducted from payment amount</td></tr>
+              <tr><td class="field-name">point_redeem_idr</td><td class="field-type">float</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of redeemed points — deducted from payment: <code>actual_payment = amount − point_redeem_idr</code></td></tr>
+              <tr><td class="field-name">voucher_amount</td><td class="field-type">float</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher deduction — added as a negative invoice line using <code>voucher_product_id</code>; already pre-deducted from <code>amount</code></td></tr>
+              <tr><td class="field-name">voucher_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher code — used as the label/name of the voucher line item</td></tr>
+              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of an inbound <code>account.payment.method.line</code>. Required when <code>actual_payment &gt; 0</code>. Set via Accounting → Journals → Incoming Payments → External ID column.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1377,12 +1384,17 @@
     <span class="json-key">"email"</span>: <span class="json-str">"john@example.com"</span>,
     <span class="json-key">"mobile_user_id"</span>: <span class="json-str">"MOB-USR-001"</span>
   },
-  <span class="json-key">"product_id"</span>: <span class="json-str">"PROD-WP-001"</span>,
   <span class="json-key">"description"</span>: <span class="json-str">"Wellness Package Gold"</span>,
   <span class="json-key">"expired_at"</span>: <span class="json-str">"2027-04-01T00:00:00"</span>,
   <span class="json-key">"transaction_date"</span>: <span class="json-str">"2026-04-01"</span>,
-  <span class="json-key">"amount"</span>: <span class="json-num">500000.0</span>,
-  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"XENDIT-EXT"</span>
+  <span class="json-key">"amount"</span>: <span class="json-num">450000.0</span>,
+  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"XENDIT-EXT"</span>,
+  <span class="json-key">"point_earning"</span>: <span class="json-num">100</span>,
+  <span class="json-key">"point_earning_idr"</span>: <span class="json-num">10000.0</span>,
+  <span class="json-key">"point_redeem"</span>: <span class="json-num">50</span>,
+  <span class="json-key">"point_redeem_idr"</span>: <span class="json-num">5000.0</span>,
+  <span class="json-key">"voucher_amount"</span>: <span class="json-num">50000.0</span>,
+  <span class="json-key">"voucher_code"</span>: <span class="json-str">"VOUCH-2026-001"</span>
 }</pre>
           </div>
         </div>
@@ -1392,9 +1404,10 @@
         <div class="card-header"><h3>What Gets Created</h3></div>
         <div class="card-body">
           <ol style="padding-left:18px; line-height:2;">
-            <li><strong>Sale Order</strong> — name = <code>name</code> field; state = <code>sale</code> (confirmed); one line with <code>name = "{description} DD/MM/YYYY"</code>, <code>price_unit = amount</code>, qty = 1</li>
-            <li><strong>Invoice</strong> — created from SO via <code>_create_invoices()</code>; journal = <code>wellness_sale_journal_id</code>; all line income accounts overridden to <code>wellness_accrued_account_id</code>; <code>ref = name</code> (order number); state = <code>posted</code></li>
-            <li><strong>Incoming Payment</strong> — journal resolved from <code>payment_journal_code</code> (inbound <code>account.payment.method.line</code> by <code>id_from_ext</code>); amount = <code>amount</code>; reconciled with invoice → <code>payment_state = paid</code></li>
+            <li><strong>Sale Order</strong> — product from <code>wellness_product_id</code> config; line name = <code>"{description} DD/MM/YYYY"</code>; <code>price_unit = amount + voucher_amount</code> (full price before voucher); qty = 1</li>
+            <li><strong>Invoice</strong> — journal = <code>wellness_sale_journal_id</code>; income account follows product category; optional negative lines for voucher (<code>voucher_product_id</code>) and point redemption (<code>product_loyalty_redemption</code>); <code>ref = name</code>; state = <code>posted</code></li>
+            <li><strong>Loyalty</strong> — earn JE created via invoice loyalty config; loyalty card points updated (same as invoice earn/redeem flow)</li>
+            <li><strong>Incoming Payment</strong> — <code>actual_payment = amount − point_redeem_idr</code>; journal from <code>payment_journal_code</code>; reconciled with invoice</li>
           </ol>
         </div>
       </div>
@@ -1541,9 +1554,10 @@
           <ul style="margin-top:6px; padding-left:18px;">
             <li><code>membership_sale_journal_id</code> — Journal for the JE (type: <code>general</code>, e.g. Miscellaneous Operations)</li>
             <li><code>membership_revenue_account_id</code> — Revenue account credited on each JE</li>
+            <li><code>membership_debit_account_id</code> — Debit account for the JE (outstanding receipts / online payment account)</li>
             <li><code>membership_analytic_account_id</code> — Analytic account applied to the credit line (optional)</li>
           </ul>
-          Each record produces one posted Journal Entry: <strong>Dr.</strong> outstanding receipts account (from payment method line) / <strong>Cr.</strong> revenue account + analytic.
+          Each record produces one posted Journal Entry: <strong>Dr.</strong> <code>membership_debit_account_id</code> / <strong>Cr.</strong> <code>membership_revenue_account_id</code> + analytic.
         </div>
       </div>
 
@@ -1561,7 +1575,6 @@
               <tr><td class="field-name">partner_id.mobile_user_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Mobile app user ID — stored on <code>res.partner.mobile_user_id</code></td></tr>
               <tr><td class="field-name">transaction_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — used as the JE date</td></tr>
               <tr><td class="field-name">amount</td><td class="field-type">float</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Transaction amount. Must be &gt; 0. Used for both debit and credit lines.</td></tr>
-              <tr><td class="field-name">payment_journal_code</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of an <strong>Inbound</strong> <code>account.payment.method.line</code>. Its <code>payment_account_id</code> (outstanding receipts account) is used as the debit account.</td></tr>
               <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used as JE narration and both line descriptions</td></tr>
             </tbody>
           </table>
@@ -1582,7 +1595,6 @@
   },
   <span class="json-key">"transaction_date"</span>: <span class="json-str">"2026-04-10"</span>,
   <span class="json-key">"amount"</span>: <span class="json-num">200000.0</span>,
-  <span class="json-key">"payment_journal_code"</span>: <span class="json-str">"PMETHOD-EXT-0001"</span>, <span class="json-comment">// id_from_ext of inbound account.payment.method.line</span>
   <span class="json-key">"description"</span>: <span class="json-str">"New Membership Purchase"</span>
 }</pre>
           </div>
@@ -1594,7 +1606,7 @@
         <div class="card-body">
           <ol style="padding-left:18px; line-height:2;">
             <li><strong>Journal Entry</strong> (move_type=entry) — posted immediately; journal = <code>membership_sale_journal_id</code>; date = <code>transaction_date</code>; ref = <code>name</code></li>
-            <li><strong>Debit line</strong> — account = <code>payment_account_id</code> from the inbound payment method line (outstanding receipts account); amount = <code>amount</code></li>
+            <li><strong>Debit line</strong> — account = <code>membership_debit_account_id</code> (configured in company settings); amount = <code>amount</code></li>
             <li><strong>Credit line</strong> — account = <code>membership_revenue_account_id</code>; amount = <code>amount</code>; analytic_distribution = <code>membership_analytic_account_id</code> (100%) if configured</li>
           </ol>
         </div>
@@ -1694,7 +1706,7 @@
               <tr>
                 <td class="field-name">Wellness Package Config</td>
                 <td class="field-desc">Settings → Accounting → Wellness Package</td>
-                <td class="field-desc"><code>wellness_warehouse_id</code>, <code>wellness_sale_journal_id</code>, <code>wellness_accrued_account_id</code>, <code>wellness_revenue_account_id</code>, <code>wellness_analytic_account_id</code> (optional)</td>
+                <td class="field-desc"><code>wellness_warehouse_id</code>, <code>wellness_sale_journal_id</code>, <code>wellness_product_id</code>, <code>wellness_accrued_account_id</code>, <code>wellness_revenue_account_id</code>, <code>wellness_analytic_account_id</code> (optional). Voucher: <code>voucher_product_id</code> (Settings → Accounting → Voucher)</td>
               </tr>
               <tr>
                 <td class="field-name">Membership Purchase Config</td>
