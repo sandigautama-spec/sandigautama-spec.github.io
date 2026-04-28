@@ -656,13 +656,14 @@
         <div>
           <strong>Auto-post flow:</strong> When <code>state=posted</code>, the ETL will:
           <ol style="margin-top:6px; padding-left:18px;">
+            <li>Add voucher line if <code>voucher_amount</code> is set — negative line using <code>voucher_product_id</code>; label = <code>voucher_code</code></li>
             <li>Add loyalty redemption line if <code>point_redeem_idr &gt; 0</code></li>
             <li>Add global discount line if <code>global_discount &lt; 0</code></li>
             <li>Post the invoice</li>
             <li>Create loyalty card history + journal entries</li>
             <li>Register payments from <code>payment_list</code>:
               <ul style="margin-top:4px;">
-                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>paid_amount − deduction lines</code></li>
+                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>payment_list.amount − loyalty redemption line − global discount line</code> (voucher is already pre-deducted in <code>amount</code>)</li>
                 <li>If entry has <code>payment_id_from_ext</code> → applies an existing deposit credit via a transfer journal entry (no new payment created)</li>
               </ul>
             </li>
@@ -692,6 +693,8 @@
               <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Also sets analytic distribution on lines.</td></tr>
               <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code> or <code>"posted"</code> (default). <code>"posted"</code> triggers full auto-post flow.</td></tr>
               <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Positive value e.g. <code>25000</code>. Adds a Global Discount line (stored as negative price). Also accepted as <code>global_discount</code> (negative). Amount deducted from payment.</td></tr>
+              <tr><td class="field-name">voucher_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher deduction amount. Adds a negative invoice line using <code>voucher_product_id</code> (company config). The <code>payment_list.amount</code> is already pre-deducted by the voucher — no further adjustment to payment.</td></tr>
+              <tr><td class="field-name">voucher_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher code — used as the line description on the voucher deduction line.</td></tr>
               <tr><td class="field-name">point_earning</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored on invoice; triggers loyalty earn history + misc JE only when <code>payment_list</code> is present.</td></tr>
               <tr><td class="field-name">point_earning_idr</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR monetary value of earned points. Used as misc JE amount; stored in <code>issued_idr_ext</code> on loyalty history. Analytic distribution is set from <code>warehouse_id.analytic_account_id</code>.</td></tr>
               <tr><td class="field-name">point_redeem</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points redeemed. Creates loyalty redeem history. Adds Loyalty Redemption line to invoice.</td></tr>
@@ -742,7 +745,7 @@
         <div class="card-header"><h3>payment_list — Payment Entry</h3></div>
         <div class="alert alert-info" style="margin:16px 20px 0;">
           <span class="alert-icon">💳</span>
-          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>paid_amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The original <code>paid_amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
+          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The <code>amount</code> is already pre-deducted by any <code>voucher_amount</code> — no further adjustment for voucher. The original <code>amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
         </div>
         <div class="params-table-wrap" style="margin-top:1px;">
           <table class="params-table">
@@ -800,7 +803,9 @@
     }
   ],
   <span class="json-key">"narration"</span>: <span class="json-str">"Invoice from WH-00001"</span>,
-  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">25000</span>, <span class="json-comment">// adds Global Discount line with negative price</span>
+  <span class="json-key">"global_discount_amount"</span>: <span class="json-num">25000</span>, <span class="json-comment">// adds Global Discount line with negative price; deducted from payment</span>
+  <span class="json-key">"voucher_amount"</span>: <span class="json-num">10000</span>, <span class="json-comment">// adds Voucher line with negative price; payment_list.amount already pre-deducted</span>
+  <span class="json-key">"voucher_code"</span>: <span class="json-str">"VOUCH-2026-001"</span>, <span class="json-comment">// label on the voucher line</span>
   <span class="json-key">"amount_untaxed_in_currency_signed"</span>: <span class="json-num">500000</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
   <span class="json-key">"amount_tax_in_currency_signed"</span>: <span class="json-num">0</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
   <span class="json-key">"amount_total"</span>: <span class="json-num">425000</span>, <span class="json-comment">// Verification only — Odoo recomputes this value</span>
@@ -823,7 +828,7 @@
           </div>
           <div class="alert alert-success" style="margin-top:16px;">
             <span class="alert-icon">🧮</span>
-            <div>In this example: <code>actual payment = 500000 − 50000 (redeem) − 25000 (discount) = 425000</code>. The original <code>500000</code> is saved in <code>paid_amount_ext</code>.</div>
+            <div>In this example: <code>actual payment = 500000 − 50000 (redeem) − 25000 (discount) = 425000</code>. The original <code>500000</code> is saved in <code>paid_amount_ext</code>. The <code>10000</code> voucher is already reflected in the <code>500000</code> amount — it only adds a negative invoice line, no further payment deduction.</div>
           </div>
         </div>
       </div>
@@ -1255,7 +1260,7 @@
             <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key. Already-existing records are skipped.</td></tr>
-              <tr><td class="field-name">partner_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of <code>res.partner</code>. Auto-creates partner using <code>user_name_ext</code> if not found.</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External customer ID (<code>res.partner.id_from_ext</code>). Lookup order: <code>partner_id</code> (id_from_ext) → <code>user_id_ext</code> (mobile_user_id fallback) → auto-create using <code>user_name_ext</code> as name.</td></tr>
               <tr><td class="field-name">create_date</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Date for the journal entry and history record. Formats: <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Text description stored on the history record and used as journal entry narration</td></tr>
               <tr><td class="field-name">issued</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored in <code>loyalty.history.issued</code>; added to <code>loyalty.card.points</code></td></tr>
@@ -1349,8 +1354,8 @@
             <tbody>
               <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key — skipped if a <code>sale.order</code> with this value already exists</td></tr>
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Order number — used as SO name and invoice <code>ref</code></td></tr>
-              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>). <code>mobile_user_id</code> is updated on existing partners when provided.</td></tr>
-              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External customer ID</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer dict — resolved by <code>id_from_ext</code> → <code>mobile_user_id</code> → auto-created. <code>mobile_user_id</code> is always synced back to <code>res.partner</code> when it changes.</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External customer ID (primary lookup key)</td></tr>
               <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Required only when auto-creating a new partner</td></tr>
               <tr><td class="field-name">partner_id.mobile_user_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Mobile app user ID — stored on <code>res.partner.mobile_user_id</code>; updated even when partner already exists</td></tr>
               <tr><td class="field-name">partner_id.*</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Standard contact fields: <code>phone</code>, <code>mobile</code>, <code>email</code>, <code>street</code>, <code>street2</code>, <code>city</code>, <code>zip</code>, <code>ref</code>, <code>comment</code>, <code>state_id</code> (match by name), <code>country_id</code> (match by ISO code)</td></tr>
@@ -1539,12 +1544,12 @@
     <div class="container">
       <div class="section-title">Membership Purchase</div>
       <div class="section-subtitle">
-        <code>data_type: "membership_purchase"</code> or <code>"membership_purchases"</code> &nbsp;·&nbsp; Creates a posted <code>account.move</code> (Journal Entry) &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
+        <code>data_type: "membership_purchase"</code> or <code>"membership_purchases"</code> &nbsp;·&nbsp; Creates Sale Order → Invoice → Payment &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
       </div>
 
       <div class="alert alert-warn">
         <span class="alert-icon">⚠️</span>
-        <div><strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists as an <code>account.move</code> with <code>move_type=entry</code> are silently skipped.</div>
+        <div><strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists as a <code>sale.order</code> are silently skipped.</div>
       </div>
 
       <div class="alert alert-info">
@@ -1552,12 +1557,12 @@
         <div>
           <strong>Required company config</strong> — set in <em>Settings → Accounting → Membership Purchase</em>:
           <ul style="margin-top:6px; padding-left:18px;">
-            <li><code>membership_sale_journal_id</code> — Journal for the JE (type: <code>general</code>, e.g. Miscellaneous Operations)</li>
-            <li><code>membership_revenue_account_id</code> — Revenue account credited on each JE</li>
-            <li><code>membership_debit_account_id</code> — Debit account for the JE (outstanding receipts / online payment account)</li>
-            <li><code>membership_analytic_account_id</code> — Analytic account applied to the credit line (optional)</li>
+            <li><code>membership_sale_journal_id</code> — Sales journal (type: <code>sale</code>) used for the invoice</li>
+            <li><code>membership_product_id</code> — Service product used as the SO/invoice line item</li>
+            <li><code>membership_payment_method_id</code> — Inbound payment method line for registering payment</li>
+            <li><code>membership_analytic_account_id</code> — Analytic account applied to invoice line + receivable line (optional)</li>
           </ul>
-          Each record produces one posted Journal Entry: <strong>Dr.</strong> <code>membership_debit_account_id</code> / <strong>Cr.</strong> <code>membership_revenue_account_id</code> + analytic.
+          Each record produces: <strong>Sale Order → Confirmed → Invoice (out_invoice) → Posted → Payment registered</strong>.
         </div>
       </div>
 
@@ -1567,15 +1572,17 @@
           <table class="params-table">
             <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key — skipped if an <code>account.move (entry)</code> with this value already exists</td></tr>
-              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Reference / order number — stored as JE <code>ref</code></td></tr>
-              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>)</td></tr>
-              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External customer ID</td></tr>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key — skipped if a <code>sale.order</code> with this value already exists</td></tr>
+              <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Order/transaction number — stored as SO name and invoice ref</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Customer dict — resolved by <code>id_from_ext</code> → <code>mobile_user_id</code> → auto-created</td></tr>
+              <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External customer ID (primary lookup key)</td></tr>
+              <tr><td class="field-name">partner_id.mobile_user_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Mobile app user ID — fallback lookup; updated on <code>res.partner</code> if partner already exists</td></tr>
               <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Required only when auto-creating a new partner</td></tr>
-              <tr><td class="field-name">partner_id.mobile_user_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Mobile app user ID — stored on <code>res.partner.mobile_user_id</code></td></tr>
-              <tr><td class="field-name">transaction_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — used as the JE date</td></tr>
-              <tr><td class="field-name">amount</td><td class="field-type">float</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Transaction amount. Must be &gt; 0. Used for both debit and credit lines.</td></tr>
-              <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used as JE narration and both line descriptions</td></tr>
+              <tr><td class="field-name">transaction_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — used as SO date_order and invoice_date</td></tr>
+              <tr><td class="field-name">amount</td><td class="field-type">float</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Transaction amount. Must be &gt; 0. Used as SO line price_unit.</td></tr>
+              <tr><td class="field-name">membership_start_date</td><td class="field-type">date</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — deferred revenue start date on invoice line; record skipped if missing</td></tr>
+              <tr><td class="field-name">membership_end_date</td><td class="field-type">date</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — deferred revenue end date on invoice line; record skipped if missing</td></tr>
+              <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Used as SO/invoice line name</td></tr>
             </tbody>
           </table>
         </div>
@@ -1595,6 +1602,8 @@
   },
   <span class="json-key">"transaction_date"</span>: <span class="json-str">"2026-04-10"</span>,
   <span class="json-key">"amount"</span>: <span class="json-num">200000.0</span>,
+  <span class="json-key">"membership_start_date"</span>: <span class="json-str">"2026-04-10"</span>,
+  <span class="json-key">"membership_end_date"</span>: <span class="json-str">"2027-04-09"</span>,
   <span class="json-key">"description"</span>: <span class="json-str">"New Membership Purchase"</span>
 }</pre>
           </div>
@@ -1605,9 +1614,11 @@
         <div class="card-header"><h3>What Gets Created</h3></div>
         <div class="card-body">
           <ol style="padding-left:18px; line-height:2;">
-            <li><strong>Journal Entry</strong> (move_type=entry) — posted immediately; journal = <code>membership_sale_journal_id</code>; date = <code>transaction_date</code>; ref = <code>name</code></li>
-            <li><strong>Debit line</strong> — account = <code>membership_debit_account_id</code> (configured in company settings); amount = <code>amount</code></li>
-            <li><strong>Credit line</strong> — account = <code>membership_revenue_account_id</code>; amount = <code>amount</code>; analytic_distribution = <code>membership_analytic_account_id</code> (100%) if configured</li>
+            <li><strong>Sale Order</strong> — date = <code>transaction_date</code>; SO name = <code>name</code>; product = <code>membership_product_id</code>; line price = <code>amount</code>; line name = <code>description</code></li>
+            <li><strong>Confirm Sale Order</strong> → creates stock picking (not validated)</li>
+            <li><strong>Invoice</strong> (out_invoice) — from SO via <code>_create_invoices()</code>; journal = <code>membership_sale_journal_id</code> (sale type); deferred start/end = <code>membership_start_date</code> / <code>membership_end_date</code>; analytic on line + receivable</li>
+            <li><strong>Post Invoice</strong> → <code>action_post()</code></li>
+            <li><strong>Payment</strong> — inbound payment registered via <code>membership_payment_method_id</code>; amount = <code>amount</code></li>
           </ol>
         </div>
       </div>
@@ -1711,7 +1722,7 @@
               <tr>
                 <td class="field-name">Membership Purchase Config</td>
                 <td class="field-desc">Settings → Accounting → Membership Purchase</td>
-                <td class="field-desc"><code>membership_sale_journal_id</code> (general journal), <code>membership_revenue_account_id</code>, <code>membership_analytic_account_id</code> (optional)</td>
+                <td class="field-desc"><code>membership_sale_journal_id</code> (sale journal), <code>membership_product_id</code> (service product), <code>membership_payment_method_id</code> (inbound payment method), <code>membership_analytic_account_id</code> (optional)</td>
               </tr>
             </tbody>
           </table>
@@ -2362,7 +2373,7 @@
           <table class="params-table">
             <thead><tr><th>Body Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"refund"</code>, <code>"refunds"</code>, <code>"deposit"</code>, <code>"deposits"</code>, <code>"loyalty_history"</code>, <code>"wellness_package"</code>, <code>"wellness_packages"</code>, <code>"membership_purchase"</code>, <code>"membership_purchases"</code></td></tr>
+              <tr><td class="field-name">data_type</td><td class="field-type">enum</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>"product"</code>, <code>"products"</code>, <code>"sales"</code>, <code>"sale"</code>, <code>"invoice"</code>, <code>"invoices"</code>, <code>"refund"</code>, <code>"refunds"</code>, <code>"deposit"</code>, <code>"deposits"</code>, <code>"deposit_refund"</code>, <code>"deposit_refunds"</code>, <code>"loyalty_history"</code>, <code>"wellness_package"</code>, <code>"wellness_packages"</code>, <code>"wellness_redemption"</code>, <code>"wellness_redemptions"</code>, <code>"membership_purchase"</code>, <code>"membership_purchases"</code></td></tr>
               <tr><td class="field-name">s3_location</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">S3 path (<code>bucket/prefix</code> or <code>bucket/path/to/file.json</code>) or local path when <code>local=true</code></td></tr>
               <tr><td class="field-name">local</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>false</code>. When <code>true</code>: reads from local filesystem, writes result CSV next to input file.</td></tr>
             </tbody>
