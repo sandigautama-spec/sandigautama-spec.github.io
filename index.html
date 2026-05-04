@@ -694,14 +694,16 @@
               <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code> or <code>"posted"</code> (default). <code>"posted"</code> triggers full auto-post flow.</td></tr>
               <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Positive value e.g. <code>25000</code>. Adds a Global Discount line (stored as negative price). Also accepted as <code>global_discount</code> (negative). Amount deducted from payment.</td></tr>
               <tr><td class="field-name">membership_discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">
-                Positive value e.g. <code>250000</code>. Free-consultation discount from mobile apps — Digitail sends the full invoice amount while mobile only collects the net. Only applies to <code>out_invoice</code>.
+                Positive value e.g. <code>250000</code>. Free-consultation discount from mobile apps. Only applies to <code>out_invoice</code>.
                 <br><br>
-                <strong>Primary flow (new sync):</strong> On the last <code>payment_list</code> entry, the write-off is embedded inside the payment JE via <code>payment_difference_handling='reconcile'</code>:<br>
-                &emsp;Dr Bank &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <code>invoice_residual − membership_discount</code><br>
+                <strong>Two source formats accepted:</strong><br>
+                <strong>(1) payment_list.amount = full invoice total</strong> — code auto-subtracts <code>membership_discount</code> from the payment amount before the wizard, so the write-off difference is non-zero.<br>
+                <strong>(2) payment_list.amount = actual collected</strong> (already pre-reduced by discount) — used as-is; write-off = <code>invoice_residual − payment_list.amount</code>.<br><br>
+                In both cases the resulting payment JE is:<br>
+                &emsp;Dr Bank &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; actual collected amount<br>
                 &emsp;Dr Membership Discount Account &nbsp; <code>membership_discount</code><br>
                 &emsp;&emsp;Cr AR (full invoice residual)<br>
-                The bank amount is always derived as <code>invoice_residual − membership_discount</code> — <code>payment_list.amount</code> is ignored for this entry. This guarantees the write-off is exactly <code>membership_discount</code> regardless of inconsistencies in source data.
-                <br><br>
+                <br>
                 <strong>Re-sync fallback</strong>: if payments are already registered (re-sync scenario), a separate write-off JE is posted using the fixed <code>membership_discount</code> amount and reconciled against the remaining open AR line:<br>
                 &emsp;Dr Membership Discount Account &nbsp; <code>membership_discount</code><br>
                 &emsp;&emsp;Cr AR (open receivable on invoice)<br>
