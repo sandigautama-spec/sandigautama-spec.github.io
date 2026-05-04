@@ -663,7 +663,7 @@
             <li>Create loyalty card history + journal entries</li>
             <li>Register payments from <code>payment_list</code>:
               <ul style="margin-top:4px;">
-                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>payment_list.amount − loyalty redemption line − global discount line</code> (voucher is already pre-deducted in <code>amount</code>)</li>
+                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>payment_list.amount − loyalty redemption line − global discount line</code> (voucher is already pre-deducted in <code>amount</code>). If the payment amount exceeds the invoice total and the payment journal creates a JE immediately (non-bank journal), the excess is automatically split into <code>customer_deposit_account_id</code> — see the Overpayment note below.</li>
                 <li>If entry has <code>payment_id_from_ext</code> → applies an existing deposit credit via a transfer journal entry (no new payment created)</li>
               </ul>
             </li>
@@ -693,6 +693,23 @@
               <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Also sets analytic distribution on lines.</td></tr>
               <tr><td class="field-name">state</td><td class="field-type">enum</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>"draft"</code> or <code>"posted"</code> (default). <code>"posted"</code> triggers full auto-post flow.</td></tr>
               <tr><td class="field-name">global_discount_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Positive value e.g. <code>25000</code>. Adds a Global Discount line (stored as negative price). Also accepted as <code>global_discount</code> (negative). Amount deducted from payment.</td></tr>
+              <tr><td class="field-name">membership_discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">
+                Positive value e.g. <code>250000</code>. Free-consultation discount from mobile apps — Digitail sends the full invoice amount while mobile only collects the net. Only applies to <code>out_invoice</code>.
+                <br><br>
+                <strong>Primary flow (new sync):</strong> On the last <code>payment_list</code> entry, the write-off is embedded inside the payment JE via <code>payment_difference_handling='reconcile'</code>:<br>
+                &emsp;Dr Bank &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <code>invoice_residual − membership_discount</code><br>
+                &emsp;Dr Membership Discount Account &nbsp; <code>membership_discount</code><br>
+                &emsp;&emsp;Cr AR (full invoice residual)<br>
+                The bank amount is always derived as <code>invoice_residual − membership_discount</code> — <code>payment_list.amount</code> is ignored for this entry. This guarantees the write-off is exactly <code>membership_discount</code> regardless of inconsistencies in source data.
+                <br><br>
+                <strong>Re-sync fallback</strong>: if payments are already registered (re-sync scenario), a separate write-off JE is posted using the fixed <code>membership_discount</code> amount and reconciled against the remaining open AR line:<br>
+                &emsp;Dr Membership Discount Account &nbsp; <code>membership_discount</code><br>
+                &emsp;&emsp;Cr AR (open receivable on invoice)<br>
+                <br>
+                <strong>Idempotent:</strong> the write-off (both primary and fallback) is skipped if <code>invoice.amount_residual ≤ 0.01</code> — i.e. the invoice is already fully settled.
+                <br><br>
+                Requires <em>Settings → Accounting → Membership Purchase → Membership Discount Account</em>.
+              </td></tr>
               <tr><td class="field-name">voucher_amount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher deduction amount. Adds a negative invoice line using <code>voucher_product_id</code> (company config). The <code>payment_list.amount</code> is already pre-deducted by the voucher — no further adjustment to payment.</td></tr>
               <tr><td class="field-name">voucher_code</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher code — used as the line description on the voucher deduction line.</td></tr>
               <tr><td class="field-name">point_earning</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored on invoice; triggers loyalty earn history + misc JE only when <code>payment_list</code> is present.</td></tr>
@@ -722,6 +739,20 @@
         </div>
       </div>
 
+      <div class="alert alert-info">
+        <span class="alert-icon">💰</span>
+        <div>
+          <strong>Overpayment → Customer Deposit (ETL invoices only)</strong><br>
+          When <code>payment_list[].amount</code> exceeds the invoice total, the excess is recorded as a customer deposit instead of leaving an outstanding AR credit on the payment.
+          <ul style="margin-top:6px; padding-left:18px;">
+            <li>The payment journal entry is modified from <em>Dr Bank / Cr AR (full amount)</em> to <em>Dr Bank / Cr AR (invoice amount) / Cr Customer Deposit (excess)</em>.</li>
+            <li>The AR credit line is reduced to exactly the invoice amount and reconciled with the invoice receivable line. The invoice is fully paid.</li>
+            <li>Requires <code>customer_deposit_account_id</code> to be configured in <em>Settings → Accounting → Customer Deposit Account</em>. If not configured, a warning is logged and the excess remains as outstanding AR credit on the payment.</li>
+            <li><strong>Only works when the payment journal creates a JE immediately</strong> (i.e., non-bank journals such as cash or custom). Bank journals in Odoo 18 defer JE creation to bank reconciliation — in that case the split is skipped and a warning is logged.</li>
+          </ul>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom:24px;">
         <div class="card-header"><h3>invoice_line_ids — Invoice Line</h3></div>
         <div class="params-table-wrap">
@@ -745,7 +776,7 @@
         <div class="card-header"><h3>payment_list — Payment Entry</h3></div>
         <div class="alert alert-info" style="margin:16px 20px 0;">
           <span class="alert-icon">💳</span>
-          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The <code>amount</code> is already pre-deducted by any <code>voucher_amount</code> — no further adjustment for voucher. The original <code>amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
+          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The <code>amount</code> is already pre-deducted by any <code>voucher_amount</code> — no further adjustment for voucher. If <code>membership_discount</code> is set on the invoice, the first payment entry will include a write-off of that amount to <code>membership_discount_account_id</code> — the <code>amount</code> here should already be the net collected amount. The original <code>amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
         </div>
         <div class="params-table-wrap" style="margin-top:1px;">
           <table class="params-table">
@@ -1560,6 +1591,7 @@
             <li><code>membership_sale_journal_id</code> — Sales journal (type: <code>sale</code>) used for the invoice</li>
             <li><code>membership_product_id</code> — Service product used as the SO/invoice line item</li>
             <li><code>membership_payment_method_id</code> — Inbound payment method line for registering payment</li>
+            <li><code>membership_warehouse_id</code> — Warehouse set on the SO and invoice; falls back to company default if not configured (optional)</li>
             <li><code>membership_analytic_account_id</code> — Analytic account applied to invoice line + receivable line (optional)</li>
           </ul>
           Each record produces: <strong>Sale Order → Confirmed → Invoice (out_invoice) → Posted → Payment registered</strong>.
@@ -1722,7 +1754,7 @@
               <tr>
                 <td class="field-name">Membership Purchase Config</td>
                 <td class="field-desc">Settings → Accounting → Membership Purchase</td>
-                <td class="field-desc"><code>membership_sale_journal_id</code> (sale journal), <code>membership_product_id</code> (service product), <code>membership_payment_method_id</code> (inbound payment method), <code>membership_analytic_account_id</code> (optional)</td>
+                <td class="field-desc"><code>membership_sale_journal_id</code> (sale journal), <code>membership_product_id</code> (service product), <code>membership_payment_method_id</code> (inbound payment method), <code>membership_warehouse_id</code> (optional), <code>membership_analytic_account_id</code> (optional)</td>
               </tr>
             </tbody>
           </table>
