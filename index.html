@@ -1292,7 +1292,7 @@
             <tbody>
               <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key. Already-existing records are skipped.</td></tr>
               <tr><td class="field-name">partner_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">External customer ID (<code>res.partner.id_from_ext</code>). Lookup order: <code>partner_id</code> (id_from_ext) → <code>user_id_ext</code> (mobile_user_id fallback) → auto-create using <code>user_name_ext</code> as name.</td></tr>
-              <tr><td class="field-name">create_date</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Date for the journal entry and history record. Formats: <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code></td></tr>
+              <tr><td class="field-name">create_date</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Date for the journal entry and history record. Accepted formats: <code>DD/MM/YYYY</code>, <code>YYYY-MM-DD</code>, or <code>YYYY-MM-DD HH:MM:SS.ffffff</code> (time component is stripped; date portion used as accounting date)</td></tr>
               <tr><td class="field-name">description</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Text description stored on the history record and used as journal entry narration</td></tr>
               <tr><td class="field-name">issued</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Loyalty points earned. Stored in <code>loyalty.history.issued</code>; added to <code>loyalty.card.points</code></td></tr>
               <tr><td class="field-name">issued_idr_ext</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">IDR value of earned points. Stored in <code>loyalty.history.issued_idr_ext</code>; used as earn journal entry amount</td></tr>
@@ -1330,7 +1330,7 @@
             <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-001"</span>,
   <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>,
-  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>, <span class="json-comment">// also accepts YYYY-MM-DD</span>
+  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>, <span class="json-comment">// DD/MM/YYYY, YYYY-MM-DD, or YYYY-MM-DD HH:MM:SS.ffffff</span>
   <span class="json-key">"description"</span>: <span class="json-str">"Top-up bonus"</span>,
   <span class="json-key">"issued"</span>: <span class="json-num">5000</span>,
   <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">50000</span>,
@@ -1476,9 +1476,15 @@
         <code>data_type: "wellness_redemption"</code> or <code>"wellness_redemptions"</code> &nbsp;·&nbsp; Creates a posted <code>account.move</code> (Journal Entry) &nbsp;·&nbsp; Create-only by <code>id_from_ext</code>
       </div>
 
-      <div class="alert alert-warn">
-        <span class="alert-icon">⚠️</span>
-        <div><strong>Create-only:</strong> Records where <code>id_from_ext</code> already exists as an <code>account.move</code> with <code>move_type=entry</code> are silently skipped — no update is performed.</div>
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ️</span>
+        <div>
+          <strong>Dual behaviour controlled by <code>redeem</code> field (default: <code>true</code>):</strong>
+          <ul style="margin-top:6px; padding-left:18px;">
+            <li><strong><code>redeem: true</code></strong> (or omitted) — <strong>Create</strong>: posts a new Journal Entry. Skipped silently if an <code>account.move (entry)</code> with this <code>id_from_ext</code> already exists.</li>
+            <li><strong><code>redeem: false</code></strong> — <strong>Cancel</strong>: looks up the original JE by <code>id_from_ext</code> and posts a reversal JE (debit/credit swapped). Skipped if the original is not found or already reversed. <code>transaction_date</code> is used as the reversal JE date.</li>
+          </ul>
+        </div>
       </div>
 
       <div class="alert alert-info">
@@ -1501,8 +1507,9 @@
           <table class="params-table">
             <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency key — skipped if an <code>account.move (entry)</code> with this value already exists</td></tr>
-              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>)</td></tr>
+              <tr><td class="field-name">id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc">Idempotency/lookup key. On create: skipped if JE already exists. On cancel: used to find the original JE to reverse.</td></tr>
+              <tr><td class="field-name">redeem</td><td class="field-type">boolean</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Default <code>true</code>. <code>true</code> = create a new redemption JE. <code>false</code> = cancel: post a reversal JE for the existing JE identified by <code>id_from_ext</code>.</td></tr>
+              <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>). Not required when <code>redeem=false</code>.</td></tr>
               <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External customer ID</td></tr>
               <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Required only when auto-creating a new partner</td></tr>
               <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of a <code>product.template</code> in Odoo — must exist</td></tr>
@@ -1518,11 +1525,12 @@
       </div>
 
       <div class="card" style="margin-bottom:24px;">
-        <div class="card-header"><h3>JSON Example</h3></div>
+        <div class="card-header"><h3>JSON Example — Create (redeem=true)</h3></div>
         <div class="card-body">
           <div class="code-block">
             <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"WR-2026-001"</span>,
+  <span class="json-key">"redeem"</span>: <span class="json-bool">true</span>, <span class="json-comment">// default — can be omitted</span>
   <span class="json-key">"partner_id"</span>: {
     <span class="json-key">"id_from_ext"</span>: <span class="json-str">"C-001"</span>,
     <span class="json-key">"name"</span>: <span class="json-str">"John Doe"</span>
@@ -1540,12 +1548,32 @@
       </div>
 
       <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><h3>JSON Example — Cancel (redeem=false)</h3></div>
+        <div class="card-body">
+          <div class="code-block">
+            <pre>{
+  <span class="json-key">"id_from_ext"</span>: <span class="json-str">"WR-2026-001"</span>, <span class="json-comment">// must match an existing JE</span>
+  <span class="json-key">"redeem"</span>: <span class="json-bool">false</span>,
+  <span class="json-key">"transaction_date"</span>: <span class="json-str">"2026-05-01"</span> <span class="json-comment">// date of the reversal JE; defaults to today if omitted</span>
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
         <div class="card-header"><h3>What Gets Created</h3></div>
         <div class="card-body">
+          <p><strong>redeem=true (create):</strong></p>
           <ol style="padding-left:18px; line-height:2;">
             <li><strong>Journal Entry</strong> (move_type=entry) — posted immediately; journal = <code>wellness_sale_journal_id</code>; date = <code>transaction_date</code>; ref = <code>Ticket Redeem on {appointment_id} for {barcode} - {product_name}</code></li>
             <li><strong>Debit line</strong> — account = <code>wellness_accrued_account_id</code>; amount = <code>amount</code></li>
             <li><strong>Credit line</strong> — account = <code>wellness_revenue_account_id</code>; amount = <code>amount</code>; analytic_distribution = <code>wellness_analytic_account_id</code> (100%) if configured</li>
+          </ol>
+          <p style="margin-top:12px;"><strong>redeem=false (cancel):</strong></p>
+          <ol style="padding-left:18px; line-height:2;">
+            <li>Looks up original JE by <code>id_from_ext</code> in <code>account.move (entry)</code></li>
+            <li>Creates a <strong>reversal Journal Entry</strong> using Odoo's <code>_reverse_moves()</code> — debit/credit swapped; date = <code>transaction_date</code>; posted immediately</li>
+            <li>Sets <code>reversed_entry_id</code> on the reversal pointing back to the original JE</li>
           </ol>
         </div>
       </div>
@@ -2163,7 +2191,7 @@
               <pre>{
   <span class="json-key">"id_from_ext"</span>: <span class="json-str">"LH-2026-001"</span>,
   <span class="json-key">"partner_id"</span>: <span class="json-str">"CUST-001"</span>, <span class="json-comment">// plain string = id_from_ext of res.partner</span>
-  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>, <span class="json-comment">// DD/MM/YYYY or YYYY-MM-DD</span>
+  <span class="json-key">"create_date"</span>: <span class="json-str">"25/03/2026"</span>, <span class="json-comment">// DD/MM/YYYY, YYYY-MM-DD, or YYYY-MM-DD HH:MM:SS.ffffff</span>
   <span class="json-key">"description"</span>: <span class="json-str">"Top-up bonus"</span>,
   <span class="json-key">"issued"</span>: <span class="json-num">5000</span>,
   <span class="json-key">"issued_idr_ext"</span>: <span class="json-num">50000</span>,
