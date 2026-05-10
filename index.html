@@ -1512,7 +1512,7 @@
               <tr><td class="field-name">partner_id</td><td class="field-type">object</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Customer dict — matched by <code>id_from_ext</code>, auto-created if not found (requires <code>name</code>). Not required when <code>redeem=false</code>.</td></tr>
               <tr><td class="field-name">partner_id.id_from_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">External customer ID</td></tr>
               <tr><td class="field-name">partner_id.name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Required only when auto-creating a new partner</td></tr>
-              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-required">Required</span></td><td class="field-desc"><code>id_from_ext</code> of a <code>product.template</code> in Odoo — must exist</td></tr>
+              <tr><td class="field-name">product_id</td><td class="field-type">string</td><td><span class="pill pill-create">redeem=true</span></td><td class="field-desc"><code>id_from_ext</code> of a <code>product.template</code> in Odoo — must exist. Not required when <code>redeem=false</code>.</td></tr>
               <tr><td class="field-name">product_barcode</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product barcode from Digitail — used in JE ref and line description</td></tr>
               <tr><td class="field-name">product_name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Product name from Digitail — used in JE ref and line description</td></tr>
               <tr><td class="field-name">transaction_date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>YYYY-MM-DD</code> — the redemption date; used as JE date. Sourced from <code>redeemed_at</code> on Digitail side.</td></tr>
@@ -1573,7 +1573,9 @@
           <ol style="padding-left:18px; line-height:2;">
             <li>Looks up original JE by <code>id_from_ext</code> in <code>account.move (entry)</code></li>
             <li>Creates a <strong>reversal Journal Entry</strong> using Odoo's <code>_reverse_moves()</code> — debit/credit swapped; date = <code>transaction_date</code>; posted immediately</li>
-            <li>Sets <code>reversed_entry_id</code> on the reversal pointing back to the original JE</li>
+            <li><code>ref</code> on the reversal is set to <code>"Reversed from {JE name} ({original ref})"</code> — e.g. <code>Reversed from WP/2026/00050 (Ticket Redeem on APT-001 for WP-BARCODE-001 - Wellness Package Gold)</code></li>
+            <li><code>partner_id</code> is explicitly copied from the original JE (written after reversal creation, before posting)</li>
+            <li><code>reversed_entry_id</code> on the reversal points back to the original JE (set automatically by Odoo)</li>
           </ol>
         </div>
       </div>
