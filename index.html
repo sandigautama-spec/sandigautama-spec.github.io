@@ -573,7 +573,7 @@
               <tr><td class="field-name">product_uom_qty</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
               <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
               <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100). Ignored when <code>discount_fixed</code> is set.</td></tr>
-              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Fixed-amount discount per line (IDR). When set, overrides <code>discount</code> %.</td></tr>
+              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Total fixed-amount discount for the line (IDR). Divided by quantity internally to get per-unit discount. When set, overrides <code>discount</code> %.</td></tr>
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Line description</td></tr>
               <tr><td class="field-name">product_uom</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">UOM name within the product's private UOM category</td></tr>
             </tbody>
@@ -766,7 +766,7 @@
               <tr><td class="field-name">quantity</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
               <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
               <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100). Ignored when <code>discount_fixed</code> is set.</td></tr>
-              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Fixed-amount discount per line (IDR). When set, overrides <code>discount</code> %.</td></tr>
+              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Total fixed-amount discount for the line (IDR). Divided by quantity internally to get per-unit discount. When set, overrides <code>discount</code> %.</td></tr>
               <tr><td class="field-name">price_subtotal</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only — mismatch logged</td></tr>
             </tbody>
           </table>
@@ -937,7 +937,7 @@
               <tr><td class="field-name">quantity</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Quantity. Default: <code>1.0</code></td></tr>
               <tr><td class="field-name">price_unit</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Unit price</td></tr>
               <tr><td class="field-name">discount</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Discount percentage (0–100)</td></tr>
-              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Fixed amount discount</td></tr>
+              <tr><td class="field-name">discount_fixed</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Total fixed-amount discount for the line (IDR). Divided by quantity internally to get per-unit discount. When set, overrides <code>discount</code> %.</td></tr>
               <tr><td class="field-name">price_subtotal</td><td class="field-type">number</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Validation only — mismatch logged</td></tr>
             </tbody>
           </table>
@@ -2023,7 +2023,7 @@
       <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
       <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>, <span class="json-comment">// fixed discount — discount must be 0 when this is set</span>
       <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
-      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// verification only — 2 × (450000 − 5000)</span>
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">895000.0</span> <span class="json-comment">// verification only — 2 × 450000 − 5000</span>
     },
     {
       <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-02"</span>, <span class="json-comment">// invoice step uses this same id_from_ext to link</span>
@@ -2115,7 +2115,7 @@
       <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
       <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
       <span class="json-key">"discount"</span>: <span class="json-num">0</span>,
-      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// verification only</span>
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">895000.0</span> <span class="json-comment">// verification only — 2 × 450000 − 5000</span>
     },
     {
       <span class="json-key">"id_from_ext"</span>: <span class="json-str">"SOL-001-02"</span>, <span class="json-comment">// matches sale.order.line → sets sale_line_ids</span>
@@ -2270,7 +2270,7 @@
       <span class="json-key">"quantity"</span>: <span class="json-num">2.0</span>,
       <span class="json-key">"price_unit"</span>: <span class="json-num">450000.0</span>,
       <span class="json-key">"discount_fixed"</span>: <span class="json-num">5000</span>,
-      <span class="json-key">"price_subtotal"</span>: <span class="json-num">890000.0</span> <span class="json-comment">// verification only</span>
+      <span class="json-key">"price_subtotal"</span>: <span class="json-num">895000.0</span> <span class="json-comment">// verification only — 2 × 450000 − 5000</span>
     }
   ],
   <span class="json-key">"global_discount_amount"</span>: <span class="json-num">35000</span>, <span class="json-comment">// adds Global Discount line: −35,000 (also deducted from payment)</span>
