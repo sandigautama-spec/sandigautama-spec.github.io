@@ -1064,7 +1064,7 @@
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher name — overrides auto-generated JE name</td></tr>
               <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Format: <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment communication / reference</td></tr>
-              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Sets <code>analytic_distribution</code> (100%) from <code>warehouse.analytic_account_id</code> on all payment JE lines (deposit-account line + bank/cash line) when the JE exists.</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Sets <code>warehouse_id</code> on the payment JE and <code>analytic_distribution</code> (100%) from <code>warehouse.analytic_account_id</code> on all payment JE lines (deposit-account line + bank/cash line) when the JE exists.</td></tr>
               <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code></td></tr>
               <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
             </tbody>
@@ -1200,7 +1200,7 @@
               <tr><td class="field-name">name</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Voucher name — overrides auto-generated JE name</td></tr>
               <tr><td class="field-name">date</td><td class="field-type">date</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment date. Format: <code>YYYY-MM-DD</code></td></tr>
               <tr><td class="field-name">memo</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Payment communication / reference</td></tr>
-              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Sets <code>analytic_distribution</code> (100%) from <code>warehouse.analytic_account_id</code> on all payment JE lines (deposit-account line + bank/cash line) when the JE exists.</td></tr>
+              <tr><td class="field-name">warehouse_id</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc"><code>id_from_ext</code> of <code>stock.warehouse</code>. Sets <code>warehouse_id</code> on the payment JE and <code>analytic_distribution</code> (100%) from <code>warehouse.analytic_account_id</code> on all payment JE lines (deposit-account line + bank/cash line) when the JE exists.</td></tr>
               <tr><td class="field-name">payment_type_name_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Stored in <code>account.payment.payment_type_name_ext</code></td></tr>
               <tr><td class="field-name">payment_type_card_brand_ext</td><td class="field-type">string</td><td><span class="pill pill-optional">Optional</span></td><td class="field-desc">Card brand stored in <code>account.payment.payment_type_card_brand_ext</code></td></tr>
             </tbody>
@@ -1277,8 +1277,8 @@
         <div>
           <strong>Journal entry logic:</strong> Requires company's non-invoice loyalty journal to be configured in <em>Settings → Accounting → Loyalty Configuration</em>.
           <ul style="margin-top:6px; padding-left:18px;">
-            <li><code>issued &gt; 0</code> → Earn JE: <strong>Debit</strong> Revenue Deduction account, <strong>Credit</strong> Payable account</li>
-            <li><code>used &gt; 0</code> → Redeem JE: <strong>Debit</strong> Payable account, <strong>Credit</strong> Revenue Deduction account</li>
+            <li><code>issued &gt; 0</code> → Earn JE: <strong>Debit</strong> Revenue Deduction account, <strong>Credit</strong> Payable account (amount = <code>issued_idr_ext</code>)</li>
+            <li><code>used &gt; 0</code> → Redeem JE: <strong>Debit</strong> Payable account, <strong>Credit</strong> Revenue Deduction account (amount = <code>used_idr_ext</code>)</li>
             <li><strong>Analytic distribution:</strong> set from <em>Settings → Accounting → Loyalty Configuration → Analytic Account (Non-Invoice Loyalty)</em> (<code>company.loyalty_non_invoice_analytic_account_id</code>). Applied to both JE lines when configured.</li>
           </ul>
         </div>
