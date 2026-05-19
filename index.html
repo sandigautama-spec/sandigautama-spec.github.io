@@ -663,7 +663,7 @@
             <li>Create loyalty card history + journal entries</li>
             <li>Register payments from <code>payment_list</code>:
               <ul style="margin-top:4px;">
-                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>payment_list.amount − loyalty redemption line − global discount line</code> (voucher is already pre-deducted in <code>amount</code>). If the payment amount exceeds the invoice total and the payment journal creates a JE immediately (non-bank journal), the excess is automatically split into <code>customer_deposit_account_id</code> — see the Overpayment note below.</li>
+                <li>If entry has <code>payment_journal_code</code> → creates <code>account.payment</code> (inbound); actual amount = <code>payment_list.amount − loyalty redemption line − global discount line</code> (voucher is already pre-deducted in <code>amount</code>). <strong>Exception:</strong> if the entry's <code>payment_journal_code</code> matches the <em>Client Credit</em> payment method code configured in Settings → Accounting → Client Credit, its amount is used as-is — deductions are applied to the next non-client-credit payment(s) instead. If the payment amount exceeds the invoice total and the payment journal creates a JE immediately (non-bank journal), the excess is automatically split into <code>customer_deposit_account_id</code> — see the Overpayment note below.</li>
                 <li>If entry has <code>payment_id_from_ext</code> → applies an existing deposit credit via a transfer journal entry (no new payment created)</li>
               </ul>
             </li>
@@ -777,7 +777,7 @@
         <div class="card-header"><h3>payment_list — Payment Entry</h3></div>
         <div class="alert alert-info" style="margin:16px 20px 0;">
           <span class="alert-icon">💳</span>
-          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The <code>amount</code> is already pre-deducted by any <code>voucher_amount</code> — no further adjustment for voucher. If <code>membership_discount</code> is set on the invoice, the first payment entry will include a write-off of that amount to <code>membership_discount_account_id</code> — the <code>amount</code> here should already be the net collected amount. The original <code>amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
+          <div>Each entry uses <strong>either</strong> <code>payment_journal_code</code> (new bank/cash payment) <strong>or</strong> <code>payment_id_from_ext</code> (apply existing deposit credit) — not both. Actual registered amount for bank/cash payments = <code>amount − sum(loyalty redemption line + global discount line)</code> read from the posted invoice. The <code>amount</code> is already pre-deducted by any <code>voucher_amount</code> — no further adjustment for voucher. <strong>Client Credit exception:</strong> if <code>payment_journal_code</code> matches the Client Credit code configured in Settings → Accounting → Client Credit, its amount is used as-is — deductions are not applied to it and carry over to the next non-client-credit entry instead. If <code>membership_discount</code> is set on the invoice, the last bank payment entry will include a write-off of that amount to <code>membership_discount_account_id</code>. The original <code>amount</code> is always stored in <code>account.payment.paid_amount_ext</code>.</div>
         </div>
         <div class="params-table-wrap" style="margin-top:1px;">
           <table class="params-table">
@@ -1745,6 +1745,11 @@
                 <td class="field-name">Loyalty Journal Config — Non-Invoice</td>
                 <td class="field-desc">Settings → Accounting → Loyalty Configuration (per company)</td>
                 <td class="field-desc">Journal + Payable account + Revenue Deduction account + <strong>Analytic Account (Non-Invoice Loyalty)</strong> — required for loyalty history JEs. The analytic account here is applied to both JE lines.</td>
+              </tr>
+              <tr>
+                <td class="field-name">Client Credit Payment Method Code</td>
+                <td class="field-desc">Settings → Accounting → Client Credit → Payment Method Code (Client Credit)</td>
+                <td class="field-desc">External ID of the payment method line used for Client Credit. When set, loyalty redemption deductions are skipped for this payment entry and applied to the next non-client-credit entry instead. Leave empty to apply deductions to all payments in order.</td>
               </tr>
               <tr>
                 <td class="field-name">Customer Deposit Account</td>
